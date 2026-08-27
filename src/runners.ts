@@ -29,6 +29,15 @@ export const DEFAULT_RUNNERS: Readonly<Record<string, string>> = {
 
 const FALLBACK = "ubuntu-latest";
 
+/**
+ * `wasm32-*` triple prefix, e.g. `wasm32-unknown-unknown`, `wasm32-wasip1`.
+ *
+ * Unlike every other row of the target-to-runner table, this one is a
+ * PREFIX match rather than an exact key: the spec maps the whole `wasm32-*`
+ * family to `ubuntu-latest` with `can-run: false`, not one specific triple.
+ */
+const WASM32_PREFIX = "wasm32-";
+
 /** Resolves the runner for a target, letting an override win. */
 export function resolveRunner(
   target: string,
@@ -41,6 +50,9 @@ export function resolveRunner(
   const native = DEFAULT_RUNNERS[target];
   if (native !== undefined) {
     return { os: native, canRun: true, mapped: true };
+  }
+  if (target.startsWith(WASM32_PREFIX)) {
+    return { os: FALLBACK, canRun: false, mapped: true };
   }
   return { os: FALLBACK, canRun: false, mapped: false };
 }

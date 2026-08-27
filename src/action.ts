@@ -93,6 +93,16 @@ export function run(deps: ActionDeps): void {
     for (const component of toolchainFile.components) {
       assertIdentifier(component, "component");
     }
+    // FINDING I3: `channel` is the one value out of this same file that
+    // reached `parseChannel` unvalidated by `assertIdentifier`, even though
+    // `parseChannel` treats an unrecognised name as an accepted custom
+    // toolchain rather than rejecting it. The resolved value becomes the
+    // `channel` output and every leg's `toolchain`, which downstream
+    // consumers interpolate into a `run:` step, so it gets the same
+    // identifier check as `target`/`component` above.
+    if (toolchainFile.channel !== undefined) {
+      assertIdentifier(toolchainFile.channel, "channel");
+    }
 
     // RULING 1: per-directory clippy validation is mode-independent. A
     // member crate's `.clippy.toml` must agree with its own `Cargo.toml`

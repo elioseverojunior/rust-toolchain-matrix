@@ -289,23 +289,29 @@ describe("run — RULING 2: validates identifiers read from the checkout", () =>
   });
 
   it("accepts realistic targets and components, still flagging the unmapped one", () => {
+    // FINDING I1: `wasm32-unknown-unknown` used to sit in this fixture as
+    // the "unmapped" target, but the spec explicitly maps the whole
+    // `wasm32-*` family — it was the test that was wrong, not the target.
+    // `riscv64gc-unknown-linux-gnu` is genuinely absent from the
+    // target-to-runner table, so it keeps this test's "still flagging the
+    // unmapped one" warning-path coverage honest.
     const r = recordingDeps({
       "/p/Cargo.toml": '[package]\nname = "cli"\n',
       "/p/rust-toolchain.toml":
         "[toolchain]\n" +
         'channel = "1.97"\n' +
-        'targets = ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]\n' +
+        'targets = ["riscv64gc-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]\n' +
         'components = ["rustfmt", "llvm-tools", "rust-src"]\n',
     });
     run(r.deps);
     expect(r.failures).toEqual([]);
     expect(r.warnings).toEqual([
-      'target "wasm32-unknown-unknown" has no runner mapping; falling ' +
+      'target "riscv64gc-unknown-linux-gnu" has no runner mapping; falling ' +
         "back to ubuntu-latest as an unverified cross-compile",
     ]);
     expect(r.outputs.get("channel")).toBe("1.97");
     expect(r.outputs.get("targets")).toBe(
-      '["wasm32-unknown-unknown","x86_64-unknown-linux-gnu"]',
+      '["riscv64gc-unknown-linux-gnu","x86_64-unknown-linux-gnu"]',
     );
     expect(r.outputs.get("components")).toBe(
       '["rustfmt","llvm-tools","rust-src"]',
@@ -314,7 +320,7 @@ describe("run — RULING 2: validates identifiers read from the checkout", () =>
       include: [
         {
           toolchain: "1.97",
-          target: "wasm32-unknown-unknown",
+          target: "riscv64gc-unknown-linux-gnu",
           os: "ubuntu-latest",
           "can-run": false,
         },
@@ -326,6 +332,63 @@ describe("run — RULING 2: validates identifiers read from the checkout", () =>
         },
       ],
     });
+  });
+
+  it("no longer warns for a wasm32 target now that it is explicitly mapped", () => {
+    const r = recordingDeps({
+      "/p/Cargo.toml": '[package]\nname = "cli"\n',
+      "/p/rust-toolchain.toml":
+        '[toolchain]\nchannel = "1.97"\ntargets = ["wasm32-unknown-unknown"]\n',
+    });
+    run(r.deps);
+    expect(r.failures).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(JSON.parse(r.outputs.get("matrix") ?? "null")).toEqual({
+      include: [
+        {
+          toolchain: "1.97",
+          target: "wasm32-unknown-unknown",
+          os: "ubuntu-latest",
+          "can-run": false,
+        },
+      ],
+    });
+  });
+
+  it("rejects a rust-toolchain.toml channel that is not a valid identifier", () => {
+    const r = recordingDeps({
+      "/p/Cargo.toml": '[package]\nname = "cli"\n',
+      "/p/rust-toolchain.toml": '[toolchain]\nchannel = "bad channel"\n',
+    });
+    run(r.deps);
+    expect(r.failures[0]).toBe(
+      'channel "bad channel" is not a valid identifier',
+    );
+  });
+
+  it("accepts every legal rustup channel form", () => {
+    // FINDING I3: the identifier check added alongside `target`/`component`
+    // must not reject anything the rustup channel grammar actually allows.
+    const legal = [
+      "stable",
+      "beta",
+      "nightly",
+      "1.88",
+      "1.88.0",
+      "1.88.0-beta.1",
+      "nightly-2026-08-03",
+      "nightly-2026-08-03-x86_64-apple-darwin",
+      "stable-x86_64-apple-darwin",
+    ];
+    for (const channel of legal) {
+      const r = recordingDeps({
+        "/p/Cargo.toml": '[package]\nname = "cli"\n',
+        "/p/rust-toolchain.toml": `[toolchain]\nchannel = "${channel}"\n`,
+      });
+      run(r.deps);
+      expect(r.failures).toEqual([]);
+      expect(r.outputs.get("channel")).toBe(channel);
+    }
   });
 });
 

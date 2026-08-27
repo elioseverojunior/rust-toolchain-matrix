@@ -31,12 +31,24 @@ describe("resolveRunner", () => {
     );
   });
 
-  it("maps wasm to ubuntu but marks it not runnable", () => {
-    expect(resolveRunner("wasm32-unknown-unknown", {})).toEqual({
-      os: "ubuntu-latest",
-      canRun: false,
-      mapped: false,
-    });
+  it("maps every wasm32-* triple to ubuntu-latest, not runnable, but mapped", () => {
+    // FINDING I1: the spec's target-to-runner table maps the whole
+    // `wasm32-*` family via a PREFIX match, not one exact triple — this
+    // used to fall through to the unmapped fallback (`mapped: false`),
+    // which wrongly fired the "no runner mapping" warning for a target the
+    // spec explicitly maps.
+    const cases = [
+      "wasm32-unknown-unknown",
+      "wasm32-wasip1",
+      "wasm32-unknown-emscripten",
+    ];
+    for (const target of cases) {
+      expect(resolveRunner(target, {})).toEqual({
+        os: "ubuntu-latest",
+        canRun: false,
+        mapped: true,
+      });
+    }
   });
 
   it("falls back for an unmapped target and reports it", () => {
