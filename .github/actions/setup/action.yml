@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Setup
+description: >
+  Install mise tools, cache and install bun dependencies.
+  Intended as the first step in every CI job to reduce duplication.
+
+runs:
+  using: composite
+  steps:
+    - name: GitHub Actions Bot Configuration
+      uses: ./.github/actions/bot-setup
+
+    - name: Setup mise
+      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      with:
+        cache_key_prefix: mise
+        cache_key: mise-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/mise.lock') || hashFiles('**/mise.toml') }}
+
+    - name: Cache bun dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.bun/install/cache
+          node_modules
+        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          bun-${{ runner.os }}-${{ runner.arch }}-
+          bun-${{ runner.os }}-
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+    - name: Install Deps
+      shell: bash -l {0}
+      run: |
+        #!/usr/bin/env bash
+
+        set -Eeuo pipefail
+
+        echo "::group::Installing Dependencies"
+        # `--filter rust-toolchain`, not a bare install: `docs/` is a workspace
+        # of this root, and without the filter every job would resolve, download
+        # and extract the whole Docusaurus tree it never imports.
+        #
+        # The filter form matters. `--filter '!docs'` (exclusion) still fetches
+        # the excluded workspace's entire graph -- measured at 4098 cache
+        # entries against 1335 -- while selecting the package BY NAME does not.
+        # Testing the exclusion form is what produced the earlier conclusion
+        # that workspaces cost 2.8x here.
+        bun install --frozen-lockfile --filter rust-toolchain
+        echo "::endgroup::"
+
+    - name: Audit Untrusted Post-installs
+      shell: bash -l {0}
+      run: |
+        #!/usr/bin/env bash
+
+        set -Eeuo pipefail
+
+        # Supply-chain guard: `bun pm untrusted` lists any package with
+        # blocked post-install scripts. Clean repo emits no `./node_modules/`
+        # lines. Any appearance means a new dep landed with a post-install
+        # that hasn't been audited + added to package.json
+        # `trustedDependencies`. Fail the PR so the audit happens at review
+        # time, not on a contributor's first `bun install`. No user input
+        # is interpolated here — only local tool output is processed.
+        echo "::group::Untrusted Post-install Audit"
+        untrusted=$(bun pm untrusted 2>&1 | grep -E '^\./node_modules/' || true)
+        if [[ -n "$untrusted" ]]; then
+          echo "::error::Untrusted post-install scripts detected. Audit each, then add to package.json trustedDependencies:"
+          echo "$untrusted"
+          exit 1
+        fi
+        echo "✓ no untrusted post-install scripts"
+        echo "::endgroup::"

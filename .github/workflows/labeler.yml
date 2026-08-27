@@ -1,0 +1,140 @@
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+# No `checkout` anywhere in this file, deliberately. `pull_request_target` runs
+# in the BASE repository's context with secrets and a writable token — here
+# `pull-requests: write` — so checking out a pull request's head would put
+# attacker-controlled code in a privileged workspace, which is the one mistake
+# this trigger exists to make easy. `actions/labeler` needs no working tree:
+# absent a local file it reads `.github/labeler.yml` from the source repository
+# over the API, which on this event is the base repo, so the config is trusted
+# no matter what the pull request contains.
+#
+# What stood here was a `ref: ${{ env.REF }}` checkout whose REF read
+# `github.event_name == 'pull_request' && ...head.sha || github.ref`. That
+# condition can never be true — `pull_request_target` is the only trigger — so
+# it always resolved to `github.ref`, the base branch, and a real run confirms
+# it checked out `refs/heads/main`. It was therefore safe, and CodeQL alert #1
+# ("Checkout of untrusted code in a privileged context") did not evaluate the
+# dead condition. Removed anyway: it advertised an intent that could not fire,
+# and collapsing that ternary to the head SHA someone would assume it already
+# used turns a false positive into a genuine high-severity vulnerability.
+
+jobs:
+  label-files:
+    name: Label by files
+    runs-on: ${{ vars.RUNS_ON_ARM64 || vars.RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Label PR based on file paths
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN || github.token }}
+          sync-labels: true
+
+  label-conventional-commits:
+    name: Label by conventional commits
+    runs-on: ${{ vars.RUNS_ON_ARM64 || vars.RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Label PR based on conventional commit title
+        uses: bcoe/conventional-release-labels@886f696738527c7be444262c327c89436dfb95a8 # v1.3.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN || github.token }}
+          type_labels: |
+            {
+              "feat": "type:feature",
+              "fix": "type:bugfix",
+              "docs": "type:documentation",
+              "style": "type:style",
+              "refactor": "type:refactor",
+              "perf": "type:performance",
+              "test": "type:test",
+              "build": "type:build",
+              "ci": "type:ci",
+              "chore": "type:chore",
+              "revert": "type:revert",
+              "init": "type:init"
+            }
+          ignored_types: "[]"
+
+  label-semver-bump:
+    name: Label version bump (GitVersion)
+    runs-on: ${{ vars.RUNS_ON_ARM64 || vars.RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Determine version bump
+        id: bump
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # GitVersion patterns (matching GitVersion.yml)
+          # Major: breaking change (! before :) or BREAKING CHANGE:
+          if [[ "$TITLE" =~ ^(feat|fix|refactor|perf|build|ci|chore|docs|style|test)(\(.+\))?!: ]] || [[ "$TITLE" =~ ^BREAKING[\ -]CHANGE: ]]; then
+            echo "bump=major" >> "$GITHUB_OUTPUT"
+          # Minor: feat
+          elif [[ "$TITLE" =~ ^feat(\(.+\))?: ]]; then
+            echo "bump=minor" >> "$GITHUB_OUTPUT"
+          # Patch: fix
+          elif [[ "$TITLE" =~ ^fix(\(.+\))?: ]]; then
+            echo "bump=patch" >> "$GITHUB_OUTPUT"
+          # No bump: docs, style, refactor, perf, test, build, ci, chore
+          elif [[ "$TITLE" =~ ^(docs|style|refactor|perf|test|build|ci|chore|init)(\(.+\))?: ]]; then
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+          else
+            echo "bump=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remove existing bump labels
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const bumpLabels = ['bump:major', 'bump:minor', 'bump:patch', 'bump:none'];
+
+            for (const label of bumpLabels) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number,
+                  name: label
+                });
+              } catch (e) {
+                // Label doesn't exist, ignore
+              }
+            }
+
+      - name: Add version bump label
+        if: steps.bump.outputs.bump != 'unknown'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const bump = '${{ steps.bump.outputs.bump }}';
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number,
+              labels: [`bump:${bump}`]
+            });
