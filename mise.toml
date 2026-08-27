@@ -155,6 +155,29 @@ alias = ["hk:check"]
 description = "Run every hk lint over the whole repo -- exactly the CI Lint job"
 run = "hk check --all"
 
+[tasks."hk:fix"]
+alias = ["hkf", "hk:fix:all"]
+description = "Run every hk step in FIX mode over the whole repo"
+run = '''
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+# `hk fix` runs the `fix` hook, which is `complete` = linters + tests. That is a
+# wider set than `hk check` (linters only), so this both repairs the fixable
+# steps and runs the suite. Steps with no `fix` command -- gitleaks, typecheck,
+# actionlint, mermaid -- still only report; fixing those is on you.
+#
+# --all is what makes this operate on the whole repo rather than on staged
+# files, matching `mise run hk`. Without it hk falls back to the git index and
+# would silently skip everything not staged.
+hk fix --all "$@"
+'''
+shell = "bash -c"
+usage = '''
+flag "-v --verbose" help="Print each hk step as it runs"
+'''
+
 # === Testing ===
 [tasks.test]
 description = "Run the test suite"
