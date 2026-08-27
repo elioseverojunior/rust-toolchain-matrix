@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: "Rust Project Parser"
+description: "Parses Cargo.toml, rust-toolchain.toml, and .clippy.toml into a GitHub Actions matrix strategy for downstream Rust CI jobs."
+author: "RUST-PROJECT-PARSER contributors"
+
+inputs:
+  working-directory:
+    description: "Where to look for Cargo.toml, rust-toolchain.toml, and .clippy.toml."
+    required: false
+    default: "."
+  toolchain:
+    description: "Overrides the resolved channel; highest precedence, above rust-toolchain.toml and the MSRV."
+    required: false
+    default: ""
+  channels:
+    description: "Extra toolchain legs to add to the matrix, e.g. beta, nightly. Comma, space, or newline separated."
+    required: false
+    default: ""
+  targets:
+    description: "Extra target triples, merged ahead of the ones declared in rust-toolchain.toml. Comma, space, or newline separated."
+    required: false
+    default: ""
+  runner-map:
+    description: "JSON object overriding or extending the target-triple-to-runner table."
+    required: false
+    default: ""
+  workspace-mode:
+    description: "How to expand a Cargo workspace into matrix units: root, per-crate, or aggregate."
+    required: false
+    default: "root"
+  include-msrv:
+    description: "Whether the MSRV becomes its own matrix leg."
+    required: false
+    default: "true"
+
+outputs:
+  matrix:
+    description: 'The GitHub Actions matrix, shaped {"include": [{toolchain, target, os, can-run, crate?}, ...]}.'
+  toolchains:
+    description: "JSON array of every toolchain in the matrix, for callers composing their own matrix."
+  targets:
+    description: "JSON array of every target in the matrix."
+  runners:
+    description: "JSON array of every runner OS used by the matrix."
+  crates:
+    description: "JSON array of crate names; populated only in per-crate workspace mode."
+  channel:
+    description: "The resolved channel."
+  msrv:
+    description: "The resolved minimum supported Rust version."
+  msrv-source:
+    description: "Where the MSRV came from: cargo-toml, workspace-inherit, or none."
+  components:
+    description: "JSON array of rustup components declared in rust-toolchain.toml. Host-level, constant across every leg."
+  profile:
+    description: "The rustup profile declared in rust-toolchain.toml."
+  install-plan:
+    description: "Ordered JSON array of rustup install steps -- data, not execution."
+  json:
+    description: "The whole output object, as JSON."
+
+runs:
+  using: "node24"
+  main: "dist/index.js"
