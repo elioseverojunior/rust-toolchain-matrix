@@ -18,22 +18,14 @@ const SHAPE = /^(\d+)\.(\d+)(?:\.(\d+))?$/;
  * sink the whole resolution, so callers skip what they cannot read.
  */
 export function parseVersion(raw: string): SemVersion | undefined {
-  const core = raw.trim().split(/[-+]/)[0];
-  if (core === undefined) {
-    return undefined;
-  }
-  const matched = SHAPE.exec(core);
+  const matched = SHAPE.exec(raw.trim().replace(/[-+].*$/, ""));
   if (matched === null) {
     return undefined;
   }
-  const [, major, minor, patch] = matched;
-  if (major === undefined || minor === undefined) {
-    return undefined;
-  }
   return {
-    major: Number(major),
-    minor: Number(minor),
-    patch: patch === undefined ? 0 : Number(patch),
+    major: Number(matched[1]),
+    minor: Number(matched[2]),
+    patch: Number(matched[3] ?? "0"),
   };
 }
 

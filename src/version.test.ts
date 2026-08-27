@@ -35,6 +35,16 @@ describe("compareVersions", () => {
     expect(compareVersions(newer, older)).toBeGreaterThan(0);
     expect(compareVersions(older, older)).toBe(0);
   });
+
+  it("compares major versions first", () => {
+    const v1 = parseVersion("1.0.0");
+    const v2 = parseVersion("2.0.0");
+    if (v1 === undefined || v2 === undefined) {
+      throw new Error("fixture versions must parse");
+    }
+    expect(compareVersions(v1, v2)).toBeLessThan(0);
+    expect(compareVersions(v2, v1)).toBeGreaterThan(0);
+  });
 });
 
 describe("maxVersion", () => {
