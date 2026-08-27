@@ -475,3 +475,110 @@ describe("run — RULING 1: per-directory clippy validation is mode-independent"
     ]);
   });
 });
+
+describe("run — Finding C1: an empty matrix is structurally fatal", () => {
+  it("fails a [workspace] with no members key in per-crate mode, emitting nothing", () => {
+    // A `[workspace]` table with NO `members` key is legal Cargo — members
+    // are auto-discovered from path dependencies — so `manifest.members` is
+    // `[]`, `memberDirectories` never throws (its guard only fires when
+    // `members.length > 0`), and `memberUnits` returns `[]`. In `per-crate`
+    // mode that makes `units` itself `[]`, so the `for (const unit of
+    // units)` loop in `run()` never runs and `MatrixBuilder` — the only
+    // place that used to guard against an empty matrix — is never
+    // constructed. GitHub Actions skips a job with an empty matrix rather
+    // than failing it, so `run()` must enforce this itself.
+    const r = recordingWorkspaceDeps(
+      { "/p/Cargo.toml": "[workspace]\n" },
+      [],
+      "per-crate",
+    );
+    run(r.deps);
+    expect(r.failures).toEqual([
+      "matrix is empty; a downstream job would be skipped silently",
+    ]);
+    expect(r.outputs.size).toBe(0);
+  });
+});
+
+describe("run — Finding I2: per-crate mode is a mode decision, not a cardinality one", () => {
+  it("keeps the crate key for a single-member workspace in per-crate mode", () => {
+    const r = recordingWorkspaceDeps(
+      {
+        "/p/Cargo.toml": '[workspace]\nmembers = ["crates/*"]\n',
+        "/p/crates/only/Cargo.toml": '[package]\nname = "only"\n',
+      },
+      ["crates/only"],
+      "per-crate",
+    );
+    run(r.deps);
+    expect(r.failures).toEqual([]);
+    expect(r.outputs.get("crates")).toBe('["only"]');
+    expect(JSON.parse(r.outputs.get("matrix") ?? "null")).toEqual({
+      include: [
+        {
+          toolchain: "stable",
+          target: "",
+          os: "ubuntu-latest",
+          "can-run": true,
+          crate: "only",
+        },
+      ],
+    });
+  });
+});
+
+describe("run — Finding I6: per-crate msrv outputs are deterministic", () => {
+  const files: Record<string, string> = {
+    "/p/Cargo.toml": '[workspace]\nmembers = ["crates/*"]\n',
+    // A pinned channel above both members' MSRV keeps the pinned toolchain
+    // deterministic too, so this test isolates the `msrv`/`msrv-source`
+    // outputs finding I6 actually fixes rather than also tripping over the
+    // separately-known non-determinism in the pin fallback (out of scope
+    // for this finding).
+    "/p/rust-toolchain.toml": '[toolchain]\nchannel = "1.97"\n',
+    "/p/crates/a/Cargo.toml": '[package]\nname = "a"\nrust-version = "1.90"\n',
+    "/p/crates/b/Cargo.toml": '[package]\nname = "b"\nrust-version = "1.95"\n',
+  };
+
+  it("picks the maximum member MSRV independent of glob order", () => {
+    const forward = recordingWorkspaceDeps(
+      files,
+      ["crates/a", "crates/b"],
+      "per-crate",
+    );
+    run(forward.deps);
+    expect(forward.failures).toEqual([]);
+    expect(forward.outputs.get("msrv")).toBe("1.95");
+    expect(forward.outputs.get("msrv-source")).toBe("cargo-toml");
+
+    // Same files, same fixture, only the glob fake's member order reversed
+    // — the scalar outputs must not move.
+    const reversed = recordingWorkspaceDeps(
+      files,
+      ["crates/b", "crates/a"],
+      "per-crate",
+    );
+    run(reversed.deps);
+    expect(reversed.failures).toEqual([]);
+    expect(reversed.outputs.get("msrv")).toBe(forward.outputs.get("msrv"));
+    expect(reversed.outputs.get("msrv-source")).toBe(
+      forward.outputs.get("msrv-source"),
+    );
+  });
+
+  it("falls back to none when no member declares an MSRV", () => {
+    const r = recordingWorkspaceDeps(
+      {
+        "/p/Cargo.toml": '[workspace]\nmembers = ["crates/*"]\n',
+        "/p/crates/a/Cargo.toml": '[package]\nname = "a"\n',
+        "/p/crates/b/Cargo.toml": '[package]\nname = "b"\n',
+      },
+      ["crates/a", "crates/b"],
+      "per-crate",
+    );
+    run(r.deps);
+    expect(r.failures).toEqual([]);
+    expect(r.outputs.get("msrv")).toBe("");
+    expect(r.outputs.get("msrv-source")).toBe("none");
+  });
+});

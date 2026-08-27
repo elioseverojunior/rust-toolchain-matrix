@@ -13,6 +13,7 @@ import { assertClippyAgreement, assertToolchainMeetsMsrv } from "./msrv.ts";
 import { buildInstallPlan, toOutputEntries } from "./outputs.ts";
 import { resolveRunner } from "./runners.ts";
 import { parseToolchainFile } from "./toolchain.ts";
+import { maxVersion } from "./version.ts";
 import type { Unit } from "./workspace.ts";
 import { expandWorkspace } from "./workspace.ts";
 
@@ -186,7 +187,11 @@ export function run(deps: ActionDeps): void {
     const legs: MatrixLeg[] = [];
     const toolchains: string[] = [];
     const crates: string[] = [];
-    const perCrate = units.length > 1;
+    // FINDING I2: cardinality must never decide the mode. A single-member
+    // workspace in `per-crate` mode still resolves `units.length === 1`,
+    // which used to read as "not per-crate" and silently dropped the
+    // `crate` key `action.yml` documents for this mode.
+    const perCrate = options.workspaceMode === "per-crate";
 
     for (const unit of units) {
       const msrv = unit.rustVersion;
@@ -219,6 +224,42 @@ export function run(deps: ActionDeps): void {
       toolchains.push(...built.toolchains);
     }
 
+    // FINDING C1: `MatrixBuilder.build()` throws on an empty `include`, but
+    // that check is unreachable when `units` itself is empty — the loop
+    // above never runs, `MatrixBuilder` is never constructed, and `legs`
+    // stays `[]`. A `[workspace]` table with no `members` key is legal
+    // Cargo (members auto-discover from path dependencies), so `units` CAN
+    // be `[]` here in `per-crate` mode. GitHub Actions SKIPS a job whose
+    // matrix is empty rather than failing it, so this is the orchestrator's
+    // own enforcement of the same fatal condition, worded identically to
+    // `matrix.ts` so the two read as one rule.
+    if (legs.length === 0) {
+      throw new Error(
+        "matrix is empty; a downstream job would be skipped silently",
+      );
+    }
+
+    // FINDING I6: in `per-crate` mode, `units[0]` is an arbitrary member
+    // decided by filesystem glob order, so reading the scalar `msrv`
+    // output from it made the output non-deterministic across machines.
+    // The scalar output is instead the MAXIMUM declared version across
+    // every unit, with `msrv-source` following whichever unit contributed
+    // it. `root` and `aggregate` mode always resolve to exactly one unit,
+    // so `primary` remains correct and unchanged for them.
+    const declaredMsrvs = units
+      .map((unit) => unit.rustVersion)
+      .filter((value): value is string => value !== undefined);
+    const highestMsrv = maxVersion(declaredMsrvs);
+    const msrvOwner = units.find((unit) => unit.rustVersion === highestMsrv);
+    const resolvedMsrv = perCrate
+      ? (highestMsrv ?? "")
+      : (primary?.rustVersion ?? "");
+    const resolvedMsrvSource = perCrate
+      ? highestMsrv === undefined
+        ? "none"
+        : (msrvOwner?.msrvSource ?? "none")
+      : (primary?.msrvSource ?? "none");
+
     const entries = toOutputEntries({
       matrix: { include: legs },
       toolchains: [...new Set(toolchains)],
@@ -226,8 +267,8 @@ export function run(deps: ActionDeps): void {
       runners: [...new Set(legs.map((leg) => leg.os))],
       crates,
       channel: pin,
-      msrv: primary?.rustVersion ?? "",
-      "msrv-source": primary?.msrvSource ?? "none",
+      msrv: resolvedMsrv,
+      "msrv-source": resolvedMsrvSource,
       components: toolchainFile.components,
       profile: toolchainFile.profile ?? "",
       "install-plan": buildInstallPlan({
