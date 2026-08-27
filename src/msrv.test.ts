@@ -34,7 +34,9 @@ describe("assertClippyAgreement", () => {
         clippyMsrv: "1.90",
         manifestRustVersion: "1.88",
       }),
-    ).toThrow(/fixtures\/cli-msrv\/\.clippy\.toml.*1\.90.*1\.88/s);
+    ).toThrow(
+      /fixtures\/cli-msrv\/\.clippy\.toml.*1\.90.*fixtures\/cli-msrv\/Cargo\.toml.*1\.88/s,
+    );
   });
 });
 

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-import { parse } from "smol-toml";
+import { parse, type TomlTable } from "smol-toml";
 
 import { describeError } from "./errors.ts";
 
@@ -13,19 +13,24 @@ export interface ClippyConfig {
 
 /** Parses a `.clippy.toml`. Throws on malformed TOML. */
 export function parseClippyConfig(toml: string): ClippyConfig {
-  let document: unknown;
-  try {
-    document = parse(toml);
-  } catch (error) {
-    throw new Error(`.clippy.toml is not valid TOML: ${describeError(error)}`, {
-      cause: error,
-    });
-  }
-  const root =
-    typeof document === "object" && document !== null
-      ? (document as Record<string, unknown>)
-      : {};
-  const msrv = root["msrv"];
+  // An immediately-invoked function keeps `document`'s type as whatever
+  // `parse` actually returns (a table, always — it never yields `unknown`),
+  // instead of widening it to `unknown` and reintroducing a defensive
+  // guard that can never be false.
+  const document = ((): TomlTable => {
+    try {
+      return parse(toml);
+    } catch (error) {
+      throw new Error(
+        `.clippy.toml is not valid TOML: ${describeError(error)}`,
+        {
+          cause: error,
+        },
+      );
+    }
+  })();
+
+  const msrv = document["msrv"];
   return {
     msrv: typeof msrv === "string" && msrv.length > 0 ? msrv : undefined,
   };
