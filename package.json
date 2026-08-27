@@ -1,10 +1,29 @@
 {
-  "name": "rust-project-parser",
+  "name": "rust-toolchain-matrix",
   "module": "src/index.ts",
   "type": "module",
   "license": "MIT OR Apache-2.0",
   "description": "Parse Cargo.toml and rust-toolchain.toml into GitHub Actions matrix strategies",
   "version": "0.0.1",
+  "author": "Elio Severo Junior <elioseverojunior@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elioseverojunior/rust-toolchain-matrix.git"
+  },
+  "homepage": "https://github.com/elioseverojunior/rust-toolchain-matrix#readme",
+  "bugs": {
+    "url": "https://github.com/elioseverojunior/rust-toolchain-matrix/issues"
+  },
+  "keywords": [
+    "github-actions",
+    "rust",
+    "cargo",
+    "matrix",
+    "ci",
+    "msrv",
+    "rust-toolchain",
+    "cargo-toml"
+  ],
   "engines": {
     "node": ">=24.0.0,<25.0.0",
     "bun": "^1.4.0",

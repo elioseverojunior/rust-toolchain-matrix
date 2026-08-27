@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -109,7 +109,7 @@ local linters = new Mapping<String, Step> {
     // Invisible locally, because the freshness check mise applies (lockfile
     // newer than `node_modules/`) is satisfied when both workspaces are
     // installed, and the auto step is a no-op. CI installs only the action's
-    // workspace (`--filter rust-project-parser`), so `docs/node_modules` is absent,
+    // workspace (`--filter rust-toolchain-matrix`), so `docs/node_modules` is absent,
     // the check reports stale on every run, and the install is real work every
     // time.
     //

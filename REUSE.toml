@@ -1,12 +1,12 @@
-SPDX-FileCopyrightText = "RUST-PROJECT-PARSER contributors"
+SPDX-FileCopyrightText = "RUST-TOOLCHAIN-MATRIX contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
-SPDX-PackageDownloadLocation = "https://github.com/elioseverojunior/rust-project-parser"
-SPDX-PackageName = "rust-project-parser"
-SPDX-PackageSupplier = "RUST-PROJECT-PARSER contributors"
+SPDX-PackageDownloadLocation = "https://github.com/elioseverojunior/rust-toolchain-matrix"
+SPDX-PackageName = "rust-toolchain-matrix"
+SPDX-PackageSupplier = "RUST-TOOLCHAIN-MATRIX contributors"
 version = 1
 
 [[annotations]]
-SPDX-FileCopyrightText = "RUST-PROJECT-PARSER contributors"
+SPDX-FileCopyrightText = "RUST-TOOLCHAIN-MATRIX contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 path = ["**"]
 precedence = "aggregate"

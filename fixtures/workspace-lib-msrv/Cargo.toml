@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -14,7 +14,7 @@ resolver = "3"
 authors = ["Elio Severo Junior <elioseverojunior@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/elioseverojunior/rust-project-parser"
+repository = "https://github.com/elioseverojunior/rust-toolchain-matrix"
 rust-version = "1.88"
 version = "0.1.0"
 

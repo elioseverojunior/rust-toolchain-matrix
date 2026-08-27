@@ -1,10 +1,10 @@
 <!--
-SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 
 SPDX-License-Identifier: MIT OR Apache-2.0
 -->
 
-# rust-project-parser Implementation Plan
+# rust-toolchain-matrix Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,7 +14,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 
 **Tech Stack:** TypeScript 6, Bun 1.4 (test runner and bundler), `smol-toml` for TOML parsing, `@actions/core` v3 for the Actions runtime, Node 26 at execution time.
 
-**Spec:** `docs/specs/2026-08-27-rust-project-parser-design.md`
+**Spec:** `docs/specs/2026-08-27-rust-toolchain-matrix-design.md`
 
 ## Global Constraints
 
@@ -25,8 +25,8 @@ Every task's requirements implicitly include this section.
 - **No mocks.** No `mock()`, no `spyOn()`. Tests pass plain object literals that satisfy the injected interface.
 - **Tests are co-located** as `src/**/*.test.ts` using `bun:test`. There is no `tests/` directory.
 - **SPDX header on every new file**, in that file's comment syntax:
-  `// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors`, a blank comment line, then
-  `// SPDX-License-Identifier: MIT OR Apache-2.0`.
+  `// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors`, a blank comment line, then
+  a `// SPDX-License-Identifier` line carrying `MIT OR Apache-2.0`.
 - **ESLint is strict.** `@typescript-eslint/explicit-function-return-type` and `no-explicit-any` are errors, not warnings. Lint runs with `--max-warnings 0`.
 - **TypeScript flags:** `verbatimModuleSyntax` (type-only imports MUST be written `import type`), `noUncheckedIndexedAccess` (every indexed access is `T | undefined`), `strict`.
 - **No non-null assertions (`!`) on data read from a file.** This is the TypeScript analogue of the project's no-`.unwrap()`-on-external-input rule.
@@ -88,7 +88,7 @@ export interface ActionCore {
 Create `src/errors.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -127,7 +127,7 @@ Expected: FAIL — `Cannot find module './errors.ts'`.
 Create `src/errors.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -200,7 +200,7 @@ The grammar, from the spec:
 Create `src/channel.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -285,7 +285,7 @@ Expected: FAIL — `Cannot find module './channel.ts'`.
 Create `src/channel.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -412,7 +412,7 @@ git commit -S -m "feat: parse rustup channel specifications"
 Create `src/version.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -477,7 +477,7 @@ Expected: FAIL — `Cannot find module './version.ts'`.
 Create `src/version.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -585,7 +585,7 @@ Rules from the spec: `channel` and `path` are mutually exclusive; `profile` is o
 Create `src/toolchain.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -659,7 +659,7 @@ Expected: FAIL — `Cannot find module './toolchain.ts'`.
 Create `src/toolchain.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -778,7 +778,7 @@ The three shapes, from the spec: a direct `[package] rust-version` wins outright
 Create `src/manifest.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -870,7 +870,7 @@ Expected: FAIL — `Cannot find module './manifest.ts'`.
 Create `src/manifest.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1017,7 +1017,7 @@ git commit -S -m "feat: parse Cargo.toml including workspace inheritance"
 Create `src/clippy.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1047,7 +1047,7 @@ describe("parseClippyConfig", () => {
 Create `src/msrv.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1135,7 +1135,7 @@ Expected: FAIL — modules not found.
 Create `src/clippy.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1172,7 +1172,7 @@ export function parseClippyConfig(toml: string): ClippyConfig {
 Create `src/msrv.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1274,7 +1274,7 @@ git commit -S -m "feat: enforce MSRV consistency across clippy and cargo config"
 Create `src/workspace.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1411,7 +1411,7 @@ Expected: FAIL — `Cannot find module './workspace.ts'`.
 Create `src/workspace.ts`. Implement exactly these three pure functions plus the dispatcher, keeping them in one module per the Rule of Three — extract a `WorkspaceResolver` interface only once a third implementation demonstrably diverges.
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1561,7 +1561,7 @@ git commit -S -m "feat: expand cargo workspaces into matrix units"
 Create `src/runners.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1625,7 +1625,7 @@ Expected: FAIL — `Cannot find module './runners.ts'`.
 Create `src/runners.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1714,7 +1714,7 @@ An empty matrix throws: a downstream job reading an empty matrix is skipped sile
 Create `src/matrix.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1797,7 +1797,7 @@ Expected: FAIL — `Cannot find module './matrix.ts'`.
 Create `src/matrix.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1927,7 +1927,7 @@ Identifier validation: every target and component must match `/^[A-Za-z0-9][A-Za
 Create `src/inputs.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2018,7 +2018,7 @@ Expected: FAIL — `Cannot find module './inputs.ts'`.
 Create `src/inputs.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2141,7 +2141,7 @@ The plan is ordered because installing the toolchain first and resolving the pro
 Create `src/outputs.test.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2227,7 +2227,7 @@ Expected: FAIL — `Cannot find module './outputs.ts'`.
 Create `src/outputs.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2342,7 +2342,7 @@ Pipeline order, from the spec: discover, parse, expand, validate, toolchain axis
 Create `src/action.test.ts`. Build a `recordingDeps()` helper returning an `ActionDeps` whose `core` pushes to arrays, and drive these cases:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2468,7 +2468,7 @@ Expected: FAIL — `Cannot find module './action.ts'`.
 Create `src/action.ts`:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2682,7 +2682,7 @@ git commit -S -m "feat: orchestrate the parse-to-matrix pipeline"
 - [ ] **Step 1: Write the entry point**
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -2712,7 +2712,7 @@ run({
 });
 ```
 
-Create `src/lib.ts` as a barrel re-exporting every module except `index.ts`, using the package specifier (`@rust-project-parser/action`, not `./action.ts`) so it resolves identically for a consumer.
+Create `src/lib.ts` as a barrel re-exporting every module except `index.ts`, using the package specifier (`@rust-toolchain-matrix/action`, not `./action.ts`) so it resolves identically for a consumer.
 
 - [ ] **Step 2: Write `action.yml`**
 
@@ -2776,7 +2776,7 @@ Add `msrv = "1.88"` to `fixtures/cli-msrv/.clippy.toml`, matching its `Cargo.tom
 Create `src/golden.test.ts` driving `run` against the four real fixtures through real `node:fs` adapters, asserting the cardinalities the spec fixes:
 
 ```ts
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

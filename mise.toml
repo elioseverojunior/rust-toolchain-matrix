@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -536,7 +536,7 @@ run = "bun install --frozen-lockfile --filter docs"
 
 [tasks."docs:build"]
 alias = ["docsb"]
-description = "Build the Docusaurus site into docs/build. Set DOCS_BASE=/ for a custom domain; the default /rust-project-parser/ matches GitHub project pages"
+description = "Build the Docusaurus site into docs/build. Set DOCS_BASE=/ for a custom domain; the default /rust-toolchain-matrix/ matches GitHub project pages"
 depends = ["docs:install"]
 dir = "docs"
 run = "bun run build"

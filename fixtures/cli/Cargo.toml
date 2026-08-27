@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -9,9 +9,9 @@
 name = "cli"
 version = "0.1.0"
 edition = "2024"
-description = "Demo fixture crate for the rust-project-parser action"
+description = "Demo fixture crate for the rust-toolchain-matrix action"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/elioseverojunior/rust-project-parser"
+repository = "https://github.com/elioseverojunior/rust-toolchain-matrix"
 publish = false
 
 [dependencies]

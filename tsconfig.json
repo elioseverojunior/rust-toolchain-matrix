@@ -2,8 +2,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],
-      "@rust-project-parser": ["./src/lib.ts"],
-      "@rust-project-parser/*": ["./src/*"]
+      "@rust-toolchain-matrix": ["./src/lib.ts"],
+      "@rust-toolchain-matrix/*": ["./src/*"]
     }
   },
   "files": [],

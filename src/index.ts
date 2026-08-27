@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

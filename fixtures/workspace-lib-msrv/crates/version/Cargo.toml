@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -8,7 +8,7 @@
 
 [package]
 name = "version"
-description = "Demo fixture member crate for the rust-project-parser action"
+description = "Demo fixture member crate for the rust-toolchain-matrix action"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

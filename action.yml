@@ -1,10 +1,10 @@
-# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+# SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 #
 # SPDX-License-Identifier: MIT OR Apache-2.0
 
-name: "Rust Project Parser"
+name: "Rust Toolchain Matrix"
 description: "Parses Cargo.toml, rust-toolchain.toml, and .clippy.toml into a GitHub Actions matrix strategy for downstream Rust CI jobs."
-author: "RUST-PROJECT-PARSER contributors"
+author: "RUST-TOOLCHAIN-MATRIX contributors"
 
 inputs:
   working-directory:

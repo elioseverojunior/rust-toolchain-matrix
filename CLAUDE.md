@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 
 SPDX-License-Identifier: MIT OR Apache-2.0
 -->
@@ -64,7 +64,7 @@ expansion, and aggregate-across-members — selected by action input.
   `setFailed(describeError(error))` — `catch` binds `unknown`, and boundaries can
   reject non-`Error` values.
 - `src/lib.ts` is the barrel and re-exports using the package specifier
-  (`@rust-project-parser/...`), not relative paths, so it resolves identically for
+  (`@rust-toolchain-matrix/...`), not relative paths, so it resolves identically for
   a consumer. It excludes `src/index.ts`.
 
 ## Commands
@@ -116,16 +116,19 @@ These differ from stock TypeScript and ESLint defaults:
   **external** because the resolver classifies it inconsistently across
   platforms.
 - Prettier: double quotes, `printWidth` 80, `trailingComma: "all"`.
-- Aliases: `@rust-project-parser/*` in `src/`, `@/*` confined to tests. `paths` is
+- Aliases: `@rust-toolchain-matrix/*` in `src/`, `@/*` confined to tests. `paths` is
   duplicated into the root `tsconfig.json` because Bun reads `paths` from the
   nearest `tsconfig.json` and does not follow `references`.
 - `**/*.ts` globs do not match `**/*.tsx`.
 
 ## Repo etiquette
 
-- Every new file needs a two-line SPDX header in its comment syntax:
-  `SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors` and
-  `SPDX-License-Identifier: MIT OR Apache-2.0`. `comply annotate` has no ignore
+- Every new file needs a two-line SPDX header in its comment syntax: an
+  `SPDX-FileCopyrightText` line naming `RUST-TOOLCHAIN-MATRIX contributors`, and
+  an `SPDX-License-Identifier` line carrying `MIT OR Apache-2.0`. Written that
+  way on purpose — spelling either tag immediately followed by its value makes
+  `comply lint` parse this prose as a real declaration and fail the file.
+  `comply annotate` has no ignore
   mechanism and re-adds headers on every run, so removing them by hand is not a
   stable state.
 - Conventional commits, enforced at `commit-msg`. The `type-enum` adds a

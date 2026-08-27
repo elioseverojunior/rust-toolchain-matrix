@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+// SPDX-FileCopyrightText: RUST-TOOLCHAIN-MATRIX contributors
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -148,18 +148,18 @@ export default [
               group: "internal",
               position: "before",
             },
-            // This package's own tsconfig `paths`. `@rust-project-parser/*` is what
+            // This package's own tsconfig `paths`. `@rust-toolchain-matrix/*` is what
             // library source uses and what a consumer maps, so the same
             // specifier resolves on both sides; `@/*` is the short form and is
             // confined to tests, which are never consumed. Both are our code,
             // so they sort under third-party and over relative imports.
             {
-              pattern: "@rust-project-parser",
+              pattern: "@rust-toolchain-matrix",
               group: "internal",
               position: "before",
             },
             {
-              pattern: "@rust-project-parser/**",
+              pattern: "@rust-toolchain-matrix/**",
               group: "internal",
               position: "before",
             },
