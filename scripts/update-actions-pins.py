@@ -109,7 +109,7 @@ _CONFIG_DIRS = [
 _CONFIG_FILES = ["action-pins.toml", "action-pins.yaml", "action-pins.yml", "action-pins.json"]
 
 _DEFAULT_CONFIG_RAW: dict[str, Any] = {
-    "branch_only_repos": {"dtolnay/rust-toolchain": ["stable", "nightly"]},
+    "branch_only_repos": {},
     "branch_overrides": {"nightly": "nightly"},
     "ref_overrides": {"github/codeql-action": "v4"},
     "reusable_paths": [

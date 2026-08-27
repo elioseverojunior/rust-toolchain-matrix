@@ -106,7 +106,6 @@ jobs:
   # ──────────────────────────────────────────────
   lint:
     name: Lint
-    needs: [setup]
     runs-on: ubuntu-latest
 
     steps:
@@ -129,7 +128,6 @@ jobs:
   # ──────────────────────────────────────────────
   test:
     name: Test
-    needs: [setup]
     runs-on: ubuntu-latest
 
     steps:
@@ -152,7 +150,6 @@ jobs:
   # ──────────────────────────────────────────────
   sast:
     name: SAST
-    needs: [setup]
     # A called workflow cannot request more than the calling job grants, and
     # `codeql.yml`'s `analyze` job asks for exactly these three.
     permissions:
@@ -188,7 +185,7 @@ jobs:
   # ──────────────────────────────────────────────
   build:
     name: Build
-    needs: [setup, version, lint, test, sast]
+    needs: [lint, test]
     runs-on: ubuntu-latest
 
     steps:
@@ -233,7 +230,7 @@ jobs:
     # `setup` and `version` are listed even though `build` already depends on
     # both: `needs.<job>.outputs` is readable only from jobs named directly
     # here, and a missing name yields the empty string instead of an error.
-    needs: [setup, version, lint, test, sast, build]
+    needs: [setup, version, build, sast]
     # `workflow_dispatch` is admitted so the dry run has something to exercise.
     # Before, this job was push-only, which meant the `dry-run` input could
     # never reach any job that acts on it -- the guard rail existed as an input

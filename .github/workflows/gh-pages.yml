@@ -230,7 +230,7 @@ jobs:
       # is the field that carries it, and using it keeps the Marketplace/Release
       # links below correct if the repository is ever renamed. This does NOT
       # keep `docusaurus.config.ts` in sync: its `baseUrl` is the literal
-      # `process.env.DOCS_BASE ?? "/rust-toolchain/"`, not derived from the
+      # `process.env.DOCS_BASE ?? "/rust-toolchain-matrix/"`, not derived from the
       # repository name, so a rename still needs that value updated by hand.
       # `steps.deploy.outputs.page_url` rather than a URL assembled from the
       # owner and repo. The Pages service is the authority on where the site
@@ -267,7 +267,7 @@ jobs:
             # `action.yml`'s `name:` ("Rust Toolchain and Cache"), NOT from the
             # repository name -- renaming the repo leaves this URL correct, and
             # renaming the action breaks it.
-            echo "- Marketplace: <https://github.com/marketplace/actions/rust-toolchain-and-cache>"
+            echo "- Marketplace: <https://github.com/marketplace/actions/rust-toolchain-matrix>"
             if [ -n "${VERSION}" ]; then
               echo "- Release: <https://github.com/${OWNER}/${REPO}/releases/tag/v${VERSION}>"
             fi
