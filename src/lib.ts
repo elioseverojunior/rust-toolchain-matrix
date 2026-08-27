@@ -19,4 +19,5 @@ export * from "@rust-project-parser/msrv";
 export * from "@rust-project-parser/outputs";
 export * from "@rust-project-parser/runners";
 export * from "@rust-project-parser/toolchain";
+export * from "@rust-project-parser/version";
 export * from "@rust-project-parser/workspace";
