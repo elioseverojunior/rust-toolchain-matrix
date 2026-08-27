@@ -15,6 +15,14 @@ const ROOT_TOML = [
   'rust-version = "1.88"',
 ].join("\n");
 
+const EXCLUDE_TOML = [
+  "[workspace]",
+  'members = ["crates/*"]',
+  'exclude = ["crates/strict"]',
+  "[workspace.package]",
+  'rust-version = "1.88"',
+].join("\n");
+
 const FILES: Record<string, string> = {
   "/w/crates/channel/Cargo.toml":
     '[package]\nname = "channel"\nrust-version.workspace = true\n',
@@ -72,6 +80,16 @@ describe("expandWorkspace", () => {
     expect(units[0]?.rustVersion).toBe("1.88");
     expect(units[1]?.rustVersion).toBe("1.92");
     expect(units[2]?.rustVersion).toBeUndefined();
+  });
+
+  it("omits crates listed in exclude from per-crate mode", () => {
+    const units = expandWorkspace({
+      deps: fakeDeps(),
+      root: "/w",
+      manifest: parseManifest(EXCLUDE_TOML),
+      mode: "per-crate",
+    });
+    expect(units.map((unit) => unit.name)).toEqual(["channel", "version"]);
   });
 
   it("collapses to the maximum member MSRV in aggregate mode", () => {
