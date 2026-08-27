@@ -8,7 +8,7 @@
 # GitHub Action runs the COMMITTED bundle, not the source. If dist/index.js
 # drifts from src/, the action silently ships behaviour nobody reviewed, and
 # nothing else in the repo would notice.
-name: ci
+name: CI
 
 on:
   workflow_dispatch:

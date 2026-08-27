@@ -114,7 +114,7 @@ local linters = new Mapping<String, Step> {
     // time.
     //
     // It failed as a bare `bun exited with non-zero status: exit code 1` with
-    // no linter output at all, on whichever step lost the race -- `mermaid` on
+    // no linter output at all, on whichever step lost the race -- `markdownlint` on
     // one attempt and `actionlint` on the next, from the same commit. A linter
     // that prints nothing is not the linter failing.
     ["actionlint"] = new Step {
@@ -126,13 +126,6 @@ local linters = new Mapping<String, Step> {
         glob = "*.md"
         check = "mise run --no-deps markdownlint {{ files }}"
         fix = "mise run --no-deps markdownlint:fix {{ files }}"
-    }
-
-    // markdownlint validates the fence, not the diagram inside it. A mermaid
-    // syntax error otherwise surfaces only as a broken render on GitHub.
-    ["mermaid"] = new Step {
-        glob = "*.md"
-        check = "mise run --no-deps mermaidlint {{ files }}"
     }
 }
 

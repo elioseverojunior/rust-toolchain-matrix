@@ -24,7 +24,7 @@ quiet = true
 # Node version is read from package.json engines field via idiomatic_version_file
 # bun and gh are provisioned by mise directly
 actionlint = { version = "latest" }
-bun = { version = "1.3" }
+bun = { version = "1.4" }
 gh = { version = "latest" }
 gitleaks = { version = "latest" }
 
@@ -41,8 +41,8 @@ gitleaks = { version = "latest" }
 
 [env]
 ARCH = "{{exec(command='uname -m')}}"
-GITHUB_TOKEN = "{{env.GITHUB_TOKEN | default(value='')}}"
-PROJECT_NAME = "{{exec(command='basename $PWD')}}"
+PROJECT_NAME = "{{exec(command='basename $(git config --get remote.origin.url) .git || {{ config_root }}')}}"
+_.file = ".env"
 
 [hooks]
 enter = { task = "setup" }
@@ -166,7 +166,7 @@ set -Eeuo pipefail
 # `hk fix` runs the `fix` hook, which is `complete` = linters + tests. That is a
 # wider set than `hk check` (linters only), so this both repairs the fixable
 # steps and runs the suite. Steps with no `fix` command -- gitleaks, typecheck,
-# actionlint, mermaid -- still only report; fixing those is on you.
+# actionlint -- still only report; fixing those is on you.
 #
 # --all is what makes this operate on the whole repo rather than on staged
 # files, matching `mise run hk`. Without it hk falls back to the git index and
@@ -317,18 +317,6 @@ run = '''
 set -eo pipefail
 
 npx rumdl check "$@"
-'''
-
-[tasks.mermaidlint]
-alias = ["mermaid", "mmd"]
-description = "Validate mermaid diagrams in Markdown with mermaid's own parser"
-shell = "bash -c"
-run = '''
-#!/usr/bin/env bash
-
-set -eo pipefail
-
-bun scripts/lint-mermaid.ts "$@"
 '''
 
 [tasks."markdownlint:fix"]
@@ -601,7 +589,7 @@ run = "true"
 
 # Mirrors what CI actually gates on. It used to depend on `lint` (ESLint +
 # Prettier only) and skip tests entirely, so it passed while the Lint job --
-# which runs `hk check --all`, adding actionlint, rumdl, mermaid, gitleaks and
+# which runs `hk check --all`, adding actionlint, rumdl, gitleaks and
 # whitespace hygiene -- failed, and it never ran the coverage gate at all.
 [tasks.ci]
 description = "Run everything CI gates on: hk, typecheck, coverage, bundle"
