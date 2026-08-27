@@ -30,10 +30,15 @@ describe("parseList", () => {
 describe("readOptions", () => {
   it("applies documented defaults", () => {
     const options = readOptions(coreWith({}));
-    expect(options.workingDirectory).toBe(".");
-    expect(options.workspaceMode).toBe("root");
-    expect(options.includeMsrv).toBe(true);
-    expect(options.channels).toEqual([]);
+    expect(options).toEqual({
+      workingDirectory: ".",
+      toolchain: undefined,
+      channels: [],
+      targets: [],
+      runnerMap: {},
+      workspaceMode: "root",
+      includeMsrv: true,
+    });
   });
 
   it("reads every input", () => {
@@ -48,11 +53,29 @@ describe("readOptions", () => {
         "runner-map": '{"wasm32-unknown-unknown":"self-hosted"}',
       }),
     );
-    expect(options.toolchain).toBe("1.90");
-    expect(options.channels).toEqual(["beta", "nightly"]);
-    expect(options.workspaceMode).toBe("per-crate");
-    expect(options.includeMsrv).toBe(false);
-    expect(options.runnerMap["wasm32-unknown-unknown"]).toBe("self-hosted");
+    expect(options).toEqual({
+      workingDirectory: "fixtures/cli",
+      toolchain: "1.90",
+      channels: ["beta", "nightly"],
+      targets: ["wasm32-unknown-unknown"],
+      runnerMap: { "wasm32-unknown-unknown": "self-hosted" },
+      workspaceMode: "per-crate",
+      includeMsrv: false,
+    });
+  });
+
+  it("accepts legitimate channel formats", () => {
+    const optionsWithDateChannel = readOptions(
+      coreWith({ channels: "nightly-2026-08-03-x86_64-apple-darwin" }),
+    );
+    expect(optionsWithDateChannel.channels).toEqual([
+      "nightly-2026-08-03-x86_64-apple-darwin",
+    ]);
+
+    const optionsWithVersionChannel = readOptions(
+      coreWith({ channels: "1.88.0-beta.1" }),
+    );
+    expect(optionsWithVersionChannel.channels).toEqual(["1.88.0-beta.1"]);
   });
 
   it("rejects an invalid workspace mode", () => {
@@ -72,6 +95,12 @@ describe("readOptions", () => {
 
   it("rejects a target name that is not an identifier", () => {
     expect(() => readOptions(coreWith({ targets: "../etc/passwd" }))).toThrow(
+      "is not a valid identifier",
+    );
+  });
+
+  it("rejects a channel name that is not an identifier", () => {
+    expect(() => readOptions(coreWith({ channels: "../etc/passwd" }))).toThrow(
       "is not a valid identifier",
     );
   });

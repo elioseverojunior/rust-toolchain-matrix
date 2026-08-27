@@ -70,12 +70,17 @@ export function readOptions(core: ActionCore): Options {
     assertIdentifier(target, "target");
   }
 
+  const channels = parseList(core.getInput("channels"));
+  for (const channel of channels) {
+    assertIdentifier(channel, "channel");
+  }
+
   const toolchain = core.getInput("toolchain");
 
   return {
     workingDirectory: core.getInput("working-directory") || ".",
     toolchain: toolchain.length > 0 ? toolchain : undefined,
-    channels: parseList(core.getInput("channels")),
+    channels,
     targets,
     runnerMap: readRunnerMap(core.getInput("runner-map")),
     workspaceMode: mode,
