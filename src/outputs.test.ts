@@ -20,6 +20,10 @@ describe("buildInstallPlan", () => {
       "install",
       "$TOOLCHAIN",
     ]);
+    expect(plan[1]).toEqual({
+      step: "profile",
+      argv: ["rustup", "set", "profile", "default"],
+    });
   });
 
   it("omits steps that do not apply", () => {
@@ -39,6 +43,10 @@ describe("buildInstallPlan", () => {
       "components",
       "target",
     ]);
+    expect(plan[1]).toEqual({
+      step: "profile",
+      argv: ["rustup", "set", "profile", "minimal"],
+    });
     expect(plan[2]?.argv).toEqual([
       "rustup",
       "component",
@@ -52,7 +60,7 @@ describe("buildInstallPlan", () => {
 
 describe("toOutputEntries", () => {
   it("serialises lists as JSON so fromJSON works", () => {
-    const entries = toOutputEntries({
+    const outputs = {
       matrix: { include: [] },
       toolchains: ["1.97"],
       targets: [],
@@ -60,15 +68,16 @@ describe("toOutputEntries", () => {
       crates: [],
       channel: "1.97",
       msrv: "1.88",
-      "msrv-source": "cargo-toml",
+      "msrv-source": "cargo-toml" as const,
       components: ["clippy"],
       profile: "default",
       "install-plan": [],
-    });
+    };
+    const entries = toOutputEntries(outputs);
     const map = new Map(entries);
     expect(map.get("toolchains")).toBe('["1.97"]');
     expect(map.get("channel")).toBe("1.97");
     expect(map.get("msrv-source")).toBe("cargo-toml");
-    expect(map.has("json")).toBe(true);
+    expect(map.get("json")).toBe(JSON.stringify(outputs));
   });
 });
