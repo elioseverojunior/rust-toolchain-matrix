@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Demo fixture: a single-package binary crate with NO `rust-version` at all, so
+# MSRV resolution must fall through to the toolchain channel.
+
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2024"
+description = "Demo fixture crate for the rust-project-parser action"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/elioseverojunior/rust-project-parser"
+publish = false
+
+[dependencies]

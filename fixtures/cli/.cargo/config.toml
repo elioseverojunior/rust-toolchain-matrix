@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Fixture cargo config. It keeps the strictness of a real project so the parser is
+# exercised against realistic input, minus two things that fail on a clean machine:
+#
+#   * `[target.*] linker = "clang"` + `-fuse-ld=mold` -- mold and clang are not
+#     guaranteed to be installed, and Cargo REPLACES `[build] rustflags` with a
+#     matching `[target.<triple>]` block rather than merging, so those overrides
+#     also silently dropped the `-D warnings` gate on the triples they named.
+#   * `[profile.release.package.glaucus-wasm]` -- a profile override naming a
+#     package that is not in the graph is a hard cargo error, not a warning.
+
+[alias]
+b = "build"
+c = "check"
+t = "test"
+
+[build]
+# Every rustc and clippy warning becomes a hard error. Cargo passes
+# `--cap-lints allow` to registry and git dependencies, so this can only ever
+# fail on this fixture's own code.
+rustflags = ["-D", "warnings"]
+rustdocflags = ["-D", "warnings"]
+
+[profile.dev]
+debug = true
+incremental = true
+opt-level = 1
+panic = "abort"
+
+# Dependencies compile once and are cached, so optimizing them does not slow the
+# edit-compile loop on first-party code.
+[profile.dev.package."*"]
+opt-level = 3
+
+# `opt-level = 0` for tests, overriding the `1` inherited from dev. At higher
+# levels LLVM merges trivial basic blocks per backend, so coverage attribution
+# stops matching the source. Cargo ignores `panic` for the test profile.
+[profile.test]
+opt-level = 0
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+opt-level = 3
+panic = "abort"
+strip = "symbols"
+
+[profile.profiling]
+debug = "line-tables-only"
+inherits = "release"
+strip = false

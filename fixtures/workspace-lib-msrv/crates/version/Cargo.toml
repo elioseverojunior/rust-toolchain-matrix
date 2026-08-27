@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# SHAPE 2 -- inheritance is OPT-IN. This member simply omits `rust-version`, so it
+# inherits NOTHING even though `[workspace.package]` declares 1.88 in the same
+# workspace. Only `rust-version.workspace = true` opts in.
+
+[package]
+name = "version"
+description = "Demo fixture member crate for the rust-project-parser action"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

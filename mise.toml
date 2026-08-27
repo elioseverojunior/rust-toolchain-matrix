@@ -1,0 +1,726 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# mise.toml - Task runner and tool version manager
+# https://mise.jdx.dev/
+# This replaces package.json scripts with mise tasks for better tool version management
+[settings]
+color = true
+experimental = true
+idiomatic_version_file = true
+# Let mise read the Node version from package.json's engines field
+idiomatic_version_file_enable_tools = ["node"]
+python.uv_venv_auto = "create|source"
+legacy_version_file = false
+lockfile = true
+not_found_auto_install = true
+quiet = true
+### Debug
+#verbose = true
+#log_level = "debug"
+
+[tools]
+# Node version is read from package.json engines field via idiomatic_version_file
+# bun and gh are provisioned by mise directly
+actionlint = { version = "latest" }
+bun = { version = "1.3" }
+gh = { version = "latest" }
+gitleaks = { version = "latest" }
+
+# Cargo Tools
+"cargo:yamllint-rs" = "latest"
+"aqua:hk" = { version = "latest", os = [
+    "linux",
+    "windows",
+    "macos/arm64",
+], arch = [
+    "arm64",
+    "x64",
+], locked = false }
+
+[env]
+ARCH = "{{exec(command='uname -m')}}"
+GITHUB_TOKEN = "{{env.GITHUB_TOKEN | default(value='')}}"
+PROJECT_NAME = "{{exec(command='basename $PWD')}}"
+
+[hooks]
+enter = { task = "setup" }
+postinstall = '''
+echo "Installed: $MISE_INSTALLED_TOOLS"
+'''
+
+[deps.bun]
+auto = true
+
+[deps.cargo]
+auto = true
+
+[deps.gh]
+auto = true
+
+[tasks.act]
+description = "Test Workflow with Nektos/ACT Locally"
+usage = '''
+flag "-t --test <test>" {
+  choices "act" "act-matrix" "act-cache"
+  default "act"
+  help "Test Case Workflow"
+  env "ACT_TEST"
+}
+'''
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+[ ! -d ".act" ] && mkdir -p .act/
+[ ! -f ".act/.vars" ] && touch .act/.vars
+[ ! -f ".act/.env" ] && touch .act/.env
+[ ! -f ".act/event.json" ] && echo "{}" > .act/event.json
+echo "Generating GitHub Token"
+export GITHUB_TOKEN=$(gh auth token)
+echo "GITHUB_TOKEN=$GITHUB_TOKEN" > .act/.secrets
+act -W .github/workflows/tests/${usage_test?}.yml
+unset GITHUB_TOKEN
+'''
+
+[tasks."act:matrix"]
+description = "Test Workflow with Nektos/ACT using Matrix Locally"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+mise run act -t act-matrix
+'''
+
+[tasks.gitignore]
+description = "Git Ignore Check"
+hide = true
+run = '''
+git check-ignore -v .act/.secrets .act/.vars .act/.env .act/event.json .act/README.md
+'''
+
+# === Tool Installation ===
+[tasks.setup]
+alias = ["install", "dev:setup", "dev:up"]
+description = "Install all mise-managed tools"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+echo "Listing mise tools..."
+mise ls
+
+echo "Installing mise tools..."
+mise lock
+mise install
+mise deps
+bun install --lockfile-only
+echo "Done, mise tools are installed/synced...."
+'''
+
+[tasks.update-actions-pins]
+alias = ["update-actions", "uap"]
+description = "Update SHA pins for GitHub Actions to latest release"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+export GITHUB_TOKEN=$(gh auth token)
+echo "Updating All GitHub Actions workflows...."
+python3 scripts/update-actions-pins.py "${@}"
+unset GITHUB_TOKEN
+'''
+
+[tasks."update-actions-pins:write"]
+alias = ["update-actions:write", "uapw"]
+description = "Update SHA pins for GitHub Actions and write changes"
+shell = "bash -c"
+run = "mise run update-actions-pins --write"
+
+[tasks."update-actions-pins:major"]
+alias = ["update-actions:major", "uapm", "uapwm"]
+description = "Update SHA pins and apply major version bumps"
+shell = "bash -c"
+run = "mise run update-actions-pins --write --apply-major"
+
+[tasks.hk]
+alias = ["hk:check"]
+description = "Run every hk lint over the whole repo -- exactly the CI Lint job"
+run = "hk check --all"
+
+# === Testing ===
+[tasks.test]
+description = "Run the test suite"
+run = "bun run test"
+
+[tasks."test:coverage"]
+alias = ["coverage"]
+description = "Run the test suite under the 100% line/function/statement gate"
+run = "bun run test:coverage"
+
+[tasks."test:mutation"]
+alias = ["mutate", "mut"]
+description = "Run mutation testing over the modules dense with boundary logic"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+# Stryker runs under NODE, not Bun. Its Babel instrumenter breaks on Bun's
+# CJS default-export interop with "generator is not a function", so `bunx --bun`
+# fails before the first mutant. Only the command it shells out to is `bun test`
+# -- and that command needs its own bunfig, for the reason stryker-bunfig.toml
+# explains at length: the command runner judges a mutant by EXIT CODE, and this
+# repo's coverage threshold would turn instrumented code into a false "killed".
+#
+# The config file is a POSITIONAL argument. There is no --configFile flag, and
+# passing one errors with "unknown option".
+#
+# This never fails the build: `thresholds.break` is unset, so a score is
+# reported and nothing exits non-zero on it. Gating on a score before knowing
+# which survivors are equivalent is how a suite starts serving the tool.
+if [ ! -x node_modules/.bin/stryker ]; then
+  echo "stryker is not installed - run 'bun install' first" >&2
+  exit 1
+fi
+
+args=()
+if [ "${usage_verbose:-false}" = "true" ]; then
+  args+=(--logLevel debug)
+fi
+
+# Variadic args arrive shell-escaped, so eval into an array to survive paths
+# with spaces. Stryker takes --mutate as one comma-separated value.
+#
+# Tested with "${paths[*]:-}" rather than an array length, for the tera reason
+# the scorecard task documents: mise renders run blocks as templates first, and
+# bash's array-length syntax opens a tera comment.
+eval "paths=(${usage_mutate:-})"
+if [ -n "${paths[*]:-}" ]; then
+  args+=(--mutate "$(IFS=,; echo "${paths[*]}")")
+fi
+
+# `${args[@]+...}` rather than a bare "${args[@]}": under `set -u` an empty
+# array is an unbound variable on the bash 3.2 that macOS still ships.
+node_modules/.bin/stryker run stryker.config.json ${args[@]+"${args[@]}"}
+
+echo "report: .stryker-tmp/mutation-report.html"
+'''
+usage = '''
+flag "-v --verbose" help="Raise Stryker's log level to debug"
+arg "[mutate]" var=#true help="Limit the run to these files; defaults to the scope in stryker.config.json"
+'''
+
+[tasks."test:watch"]
+description = "Run the test suite in watch mode"
+shell = "bash -c"
+run = "bun test --watch"
+
+# === Building ===
+# `build:action` is an alias, not a second task. It used to `depends` on a task
+# that ran `bun run build`, which runs package.json's `build`, which runs its
+# `build:action` -- four hops to reach one `bun build`.
+[tasks.build]
+alias = ["build:action"]
+description = "Bundle the action into dist/index.js for the node24 runtime"
+run = "bun run build"
+
+# === Linting & Formatting ===
+[tasks.lint]
+description = "Run all linting (ESLint + Prettier check)"
+depends = ["eslint:lint", "prettier:format"]
+shell = "bash -c"
+run = "true"
+
+[tasks."eslint:lint"]
+description = "Run ESLint with zero warnings allowed"
+shell = "bash -c"
+run = "eslint --max-warnings 0 --ignore-pattern dist/ ."
+
+[tasks."eslint:lint:fix"]
+description = "Run ESLint with auto-fix"
+shell = "bash -c"
+run = "eslint --fix --max-warnings 0 --ignore-pattern dist/ ."
+
+[tasks."prettier:format"]
+description = "Check code formatting with Prettier"
+shell = "bash -c"
+run = "prettier --check ."
+
+[tasks."prettier:format:fix"]
+description = "Format code with Prettier (write changes)"
+shell = "bash -c"
+run = "prettier --write ."
+
+[tasks."fix:all"]
+alias = ["lint:fix"]
+description = "Run all auto-fixes (ESLint + Prettier)"
+depends = ["eslint:lint:fix", "prettier:format:fix"]
+shell = "bash -c"
+run = "true"
+
+[tasks.actionlint]
+alias = "al"
+description = "Lint GitHub Actions workflows with actionlint (config in .github/actionlint.yaml); pass paths (e.g. lefthook {staged_files}) or default to all workflows"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+# actionlint auto-discovers .github/actionlint.yaml. With no paths it lints
+# every workflow under .github/workflows; forward staged paths when given.
+# Variadic args arrive shell-escaped — eval into an array so paths survive.
+eval "paths=(${usage_paths:-})"
+actionlint "${paths[@]}"
+'''
+shell = "bash -c"
+usage = 'arg "[paths]" var=#true help="workflow files to lint; defaults to every workflow under .github/workflows when omitted"'
+
+[tasks.markdownlint]
+alias = ["mdlint", "rumdl"]
+description = "Lint Markdown files with rumdl"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+npx rumdl check "$@"
+'''
+
+[tasks.mermaidlint]
+alias = ["mermaid", "mmd"]
+description = "Validate mermaid diagrams in Markdown with mermaid's own parser"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+bun scripts/lint-mermaid.ts "$@"
+'''
+
+[tasks."markdownlint:fix"]
+alias = ["mdlint:fix", "rumdl:fix"]
+description = "Fix Markdown files with rumdl"
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+rumdl fmt "$@"
+'''
+
+[tasks.yamllint]
+alias = ["yl"]
+description = "Lint YAML with yamllint; pass paths (e.g. lefthook {staged_files}) or default to the whole repo"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+# Variadic args arrive as a shell-escaped string; eval into an array so paths
+# with spaces survive. Fall back to the whole repo when no paths are passed.
+eval "paths=(${usage_paths:-.})"
+yamllint "${paths[@]}"
+'''
+shell = "bash -c"
+usage = 'arg "[paths]" var=#true help="Paths to lint; defaults to the whole repo when omitted"'
+
+[tasks."yamllint:fix"]
+alias = ["ylf"]
+description = "Lint YAML with yamllint-rs; pass paths (e.g. lefthook {staged_files}) or default to the whole repo"
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+# Safely check if the usage_paths variable is set and non-empty.
+# ${usage_paths:-} prevents "unbound variable" errors under set -u.
+if [ -n "${usage_paths:-}" ]; then
+  # Note: To handle paths with spaces safely when using 'var=true',
+  # mise recommends using eval to parse the shell-escaped string into an array.
+  eval "paths=($usage_paths:-.)"
+else
+  mapfile -t paths < <(yamllint --list-files .)
+fi
+
+npx prettier --write "${paths[@]}"
+
+# Run the linter
+yamllint-rs --config .yamllint.yml --fix "${paths[@]}"
+'''
+shell = "bash -c"
+usage = 'arg "[paths]" var=#true help="Paths to lint; defaults to the whole repo when omitted"'
+
+# === Type Checking ===
+[tasks.typecheck]
+description = "Run TypeScript type checking"
+shell = "bash -c"
+run = "tsc -p tsconfig.json --noEmit"
+
+[tasks."typecheck:watch"]
+description = "Run TypeScript type checking in watch mode"
+shell = "bash -c"
+run = "tsc -p tsconfig.json --noEmit --watch"
+
+# === Dependencies ===
+[tasks.deps]
+description = "Update dependencies and reinstall"
+depends = ["deps:update"]
+shell = "bash -c"
+run = "bun install"
+
+[tasks."deps:update"]
+description = "Update dependencies to latest minor versions"
+shell = "bash -c"
+run = "bunx --bun npm-check-updates -u --target minor"
+
+[tasks."deps:check"]
+description = "Check for available dependency updates"
+shell = "bash -c"
+run = "bunx --bun npm-check-updates --target minor"
+
+[tasks."deps:latest"]
+description = "Update dependencies to latest versions"
+shell = "bash -c"
+run = "bunx --bun npm-check-updates -u --target latest && bun install"
+
+# === Versioning ===
+#
+# Ported from the automation in the `comply` repository, minus the parts that
+# anchor on `Cargo.toml` (`version:sync`, `version:check`, `release:prepare`) --
+# this repository publishes a GitHub Action, has no manifest declaring the
+# released version, and `package.json`'s inert 0.0.1 is not a substitute.
+#
+# There is no `release` task, deliberately. Tags and GitHub Releases are created
+# only by `cicd.yml`'s Release job, from the outputs of
+# `.github/workflows/version.yml` -- the single source of truth. These tasks
+# print the SAME derivation locally so you can see what a push would produce;
+# they never write anything. A previous pair of `release`/`version` tasks ran
+# `changeset` against no `.changeset/` directory and no changesets dependency,
+# failing on invocation while implying changesets governed versioning.
+#
+# GitVersion is not in `[tools]` above -- it is a dotnet tool, installed
+# separately -- so `version:json` degrades to `{}` rather than failing when it
+# is absent, and every task below reports that clearly instead of emitting
+# `vnull`.
+
+[tasks."git:tags:fetch"]
+description = "Force-refresh tags from origin so GitVersion sees the graph CI sees"
+hide = true
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+git rev-parse --git-dir >/dev/null 2>&1 || exit 0
+git remote get-url origin >/dev/null 2>&1 || exit 0
+
+# `--force` is the whole point: without it git leaves an existing tag alone and
+# the refresh is a no-op precisely when it matters.
+git fetch --tags --force --quiet origin 2>/dev/null || {
+    echo "version: could not reach origin; tags may be stale and the computed version wrong" >&2
+    exit 0
+}
+'''
+
+[tasks."version:json"]
+# Every version answer in this file routes through here, so refreshing tags at
+# this one point makes all of them correct by construction rather than each
+# remembering to do it.
+depends = ["git:tags:fetch"]
+description = "Print the GitVersion JSON for the working tree, or an empty object"
+hide = true
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+set -eo pipefail
+# `/nocache` because GitVersion's cache invalidates on the COMMIT, not on the
+# tag graph. The Release job moves the floating tags onto the current commit, so
+# an entry computed before the tag keeps being served at exactly the moment the
+# answer changed. `.github/workflows/version.yml` passes `disableCache: true`
+# for the same reason.
+#
+# `AssemblySemVer`/`AssemblySemFileVer` are .NET four-part assembly versions
+# (`0.0.1.0`). Nothing here consumes them, and they read as a third and fourth
+# disagreeing version next to `SemVer` and `MajorMinorPatch`. Deleting them and
+# adding `MajorMinor` makes this object identical to the `json` output of
+# `.github/workflows/version.yml`, so the local and CI answers agree.
+gitversion /nocache /output json \
+  | jq -Sr 'del(.AssemblySemVer, .AssemblySemFileVer) + {MajorMinor: "\(.Major).\(.Minor)"}' \
+    2>/dev/null || echo '{}'
+'''
+
+[tasks.version]
+alias = ["semver"]
+description = "Print GitVersion's SemVer for the working tree, e.g. 0.2.1-2 -- what a push to main would release"
+shell = "bash -c"
+run = "mise run version:json | jq -r '.SemVer'"
+
+[tasks."version:tag"]
+description = "Print the exact tag name derived from version:json, e.g. v0.2.1-2"
+hide = true
+shell = "bash -c"
+run = '''
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+VERSION="$(mise run version:json | jq -r '.SemVer // empty')"
+
+# Empty means version:json fell back to `{}` -- gitversion is missing or refused
+# the tree. Printing `vnull` from that is worse than stopping.
+if [ -z "${VERSION}" ]; then
+    echo "error: version:json supplied no SemVer; is gitversion installed?" >&2
+    exit 1
+fi
+
+echo "v${VERSION}"
+'''
+
+[tasks."version:tags:floating"]
+description = "Print the floating tag names for a version, e.g. v0.2.1 v0.2 v0 -- the set the Release job force-pushes"
+hide = true
+shell = "bash -c"
+usage = 'arg "[tag]" help="tag to derive from, e.g. v0.2.1-2; defaults to the version:tag derivation"'
+run = '''
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+TAG="${usage_tag:-$(mise run version:tag)}"
+
+# v0.2.1-2 -> 0.2.1: drop the leading v, then the pre-release/build suffix.
+BASE="${TAG#v}"
+BASE="${BASE%%[-+]*}"
+
+IFS='.' read -r MAJOR MINOR _ <<<"${BASE}"
+MINOR="${MINOR:-0}"
+
+# A version like `0.2` yields `v0.2` twice; emit each name once.
+printf 'v%s\nv%s.%s\nv%s\n' "${BASE}" "${MAJOR}" "${MINOR}" "${MAJOR}" | awk '!seen[$0]++'
+'''
+
+# === Documentation ===
+#
+# The site under `docs/` is a Bun WORKSPACE of the repository root, not a
+# separate project: one lockfile at the root, shared pins in its `catalog`.
+# `docs:install` therefore runs from the root with `--filter docs`, which is
+# why it carries no `dir` -- see its own comment. The build and serve tasks
+# below still set `dir = "docs"`, because docusaurus resolves its config
+# relative to the working directory. None of these belong in a
+# lint or test gate: a broken docs build must not fail the action's gate.
+
+[tasks."docs:install"]
+alias = ["docsi"]
+description = "Install the docs site dependencies from the workspace root"
+# NOT `dir = "docs"`. `docs/` is a workspace of the repository root and there is
+# one lockfile, at the root, so the install has to run there and be scoped with
+# `--filter docs`. Running it from inside `docs/` would resolve up to the same
+# root anyway and install BOTH workspaces.
+#
+# `--frozen-lockfile` because gh-pages.yml asserts `git diff --exit-code --
+# bun.lock` after building: an install that rewrites the lock fails the job.
+# Add dependencies with `bun add --filter docs` from the root instead.
+run = "bun install --frozen-lockfile --filter docs"
+
+[tasks."docs:build"]
+alias = ["docsb"]
+description = "Build the Docusaurus site into docs/build. Set DOCS_BASE=/ for a custom domain; the default /rust-project-parser/ matches GitHub project pages"
+depends = ["docs:install"]
+dir = "docs"
+run = "bun run build"
+
+[tasks."docs:dev"]
+alias = ["docs", "docsd"]
+description = "Serve the docs site with hot reload on http://localhost:5273. DOCS_PORT overrides the port"
+depends = ["docs:install"]
+dir = "docs"
+run = 'bun run start --port {{env.DOCS_PORT | default(value="5273")}}'
+
+[tasks."docs:typecheck"]
+alias = ["docstc"]
+description = "Type-check the site. Nothing else does: docusaurus build transpiles without type-checking, so an error in the config only ever surfaced in an editor"
+depends = ["docs:install"]
+dir = "docs"
+run = "bun run typecheck"
+
+[tasks."docs:preview"]
+alias = ["docsp"]
+description = "Serve the built docs site on http://localhost:5273, to check the production build before publishing. DOCS_PORT overrides the port"
+depends = ["docs:build"]
+dir = "docs"
+run = 'bun run serve --port {{env.DOCS_PORT | default(value="5273")}}'
+
+[tasks.readme]
+description = "Regenerate README.md from action.yml using action-docs"
+shell = "bash -c"
+run = "bunx action-docs --no-banner --update-readme README.md"
+
+# === CI / Development ===
+# Reachable again: `setup` used to carry `dev` in its alias list, which shadowed
+# this task entirely -- `mise run dev` installed tools and ran no checks. The
+# description also promised tests it never ran, because no test task existed.
+[tasks.dev]
+description = "Run the quick development checks: lint, typecheck, test"
+depends = ["lint", "typecheck", "test"]
+run = "true"
+
+# Mirrors what CI actually gates on. It used to depend on `lint` (ESLint +
+# Prettier only) and skip tests entirely, so it passed while the Lint job --
+# which runs `hk check --all`, adding actionlint, rumdl, mermaid, gitleaks and
+# whitespace hygiene -- failed, and it never ran the coverage gate at all.
+[tasks.ci]
+description = "Run everything CI gates on: hk, typecheck, coverage, bundle"
+depends = ["hk", "typecheck", "test:coverage", "build"]
+run = "true"
+
+[tasks."gh:token"]
+description = "Get GitHub token from gh auth"
+shell = "bash -c"
+run = "gh auth token"
+
+[tasks."gh:token:set"]
+description = "Set GITHUB_TOKEN from gh auth for current shell"
+shell = "bash -c"
+run = "export GITHUB_TOKEN=$(gh auth token) && echo 'GITHUB_TOKEN set from gh auth'"
+
+# === Doctor / Diagnostics ===
+[tasks.doctor]
+description = "Diagnose toolchain and project state"
+shell = "bash -c"
+run = """
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "=== Platform: $(uname -s) ($(uname -m)) ==="
+
+echo "-- Node toolchain (package.json engines) --"
+v() {
+    label="$1"
+    shift
+    out="$("$@" 2>/dev/null | head -1)"
+    printf "  %-20s : %s\n" "$label" "${out:-MISSING}"
+}
+
+v node node --version
+v bun bun --version
+v npm npm --version
+
+echo "-- GitHub CLI --"
+v gh gh --version
+
+echo "-- Mise --"
+v mise mise --version
+
+echo "-- Project state --"
+printf "  %-20s : %s\n" "GITHUB_TOKEN" "${GITHUB_TOKEN:-NOT SET (run 'mise run gh:token:set')}"
+"""
+
+# === Commitlint ===
+[tasks.commitlint]
+description = "Lint commit message against conventional commits"
+shell = "bash -c"
+run = """
+#!/usr/bin/env bash
+set -eo pipefail
+
+# Check if commitlint is installed
+if ! command -v commitlint &> /dev/null; then
+    echo "commitlint not found. Installing..."
+    bunx --bun npm install -g @commitlint/cli @commitlint/config-conventional
+fi
+
+# If commit message file is provided as arg, use it
+if [ $# -gt 0 ]; then
+    commitlint --edit "$1"
+else
+    # Read from stdin (for git commit-msg hook)
+    cat | commitlint
+fi
+"""
+
+
+[tasks.scorecard]
+alias = ["sco"]
+description = "Score supply-chain health with OpenSSF Scorecard"
+# Extra flags pass straight through, e.g. `mise run sco --checks=Binary-Artifacts`.
+run = '''
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+# `scorecard --local` walks the filesystem directly and has NO exclude/ignore
+# flag, so pointing it at the repo root scans build/ and build/DerivedData
+# (gigabytes of build output) and scores Binary-Artifacts 0/10 on compiled
+# dependencies. Mirror only the tracked files into a scratch tree instead:
+# `git ls-files` IS the exclusion mechanism, since a path .gitignore excludes is
+# never tracked and so can never reach the scan. Local mode runs the
+# filesystem-based checks; the history/API ones are skipped either way, so the
+# tree needs no .git.
+#
+# Copy working-tree content (not `git checkout-index`, which reads the index)
+# so an edit you have not staged yet is what actually gets scored.
+root="$(git rev-parse --show-toplevel)"
+out="${SCORECARD_OUTPUT:-$root/scorecard.json}"
+
+tree="$(mktemp -d)"
+raw="$(mktemp)"
+trap 'rm -rf "$tree" "$raw"' EXIT
+
+while IFS= read -r -d '' f; do
+  [ -f "$root/$f" ] || [ -L "$root/$f" ] || continue
+  mkdir -p "$tree/$(dirname "$f")"
+  cp -Pp "$root/$f" "$tree/$f"
+done < <(git -C "$root" ls-files -z)
+
+eval "args=(${usage_args:-})"
+
+# A filtered run (--checks=...) produces a partial report whose aggregate score
+# is computed from only those checks — writing that over scorecard.json makes a
+# single 10/10 check look like a perfect overall score. Send filtered runs to a
+# separate file so the canonical report is always a complete scan.
+# Tested against usage_args rather than the array length: mise renders run
+# blocks as tera templates, and bash's ${#array[@]} opens a tera comment (`{#`),
+# which fails the task with "Closing comment tag `#}` not found".
+if [ -n "${usage_args:-}" ]; then
+  out="${out%.json}.partial.json"
+fi
+
+scorecard \
+  --local="$tree" \
+  --format json \
+  --show-details \
+  --show-annotations \
+  --output "$raw" \
+  "${args[@]}"
+
+# scorecard reports the directory it was pointed at, so --local leaves the
+# scratch mirror's mktemp path in .repo.name and cannot resolve .repo.commit at
+# all. Restore the real identity; mark it -dirty because the scan copies
+# working-tree content, which by definition may differ from HEAD.
+name="$(git -C "$root" remote get-url origin 2>/dev/null || basename "$root")"
+commit="$(git -C "$root" rev-parse HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git -C "$root" status --porcelain)" ]; then
+  commit="$commit-dirty"
+fi
+
+jq --arg name "$name" --arg commit "$commit" \
+  '.repo.name = $name | .repo.commit = $commit' "$raw" > "$out"
+
+echo "wrote $out ($(jq '.checks | length' "$out") checks, score $(jq '.score' "$out"))"
+cat "$out" | jq -Sr '.' > "$out.new"
+mv "$out.new" "$out"
+'''
+shell = "bash -c"
+usage = 'arg "[args]" var=#true help="extra scorecard flags, e.g. --checks=Binary-Artifacts"'

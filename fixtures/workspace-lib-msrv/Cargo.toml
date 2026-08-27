@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Demo fixture: a real Cargo workspace that declares a workspace-level MSRV. Its
+# three members deliberately cover all three inheritance shapes the parser must
+# tell apart -- see each member manifest.
+
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+authors = ["Elio Severo Junior <elioseverojunior@gmail.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/elioseverojunior/rust-project-parser"
+rust-version = "1.88"
+version = "0.1.0"
+
+[workspace.lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unnameable_types = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Lint GROUPS raised to `warn`, which `-D warnings` then makes fatal.
+# priority = -1 so the per-lint overrides below win over the groups.
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Production code must not panic; .clippy.toml re-permits both in tests.
+expect_used = "warn"
+unwrap_used = "warn"
+
+# `redundant_pub_crate` (nursery) contradicts the stable `unreachable_pub`
+# lint above. They cannot both be satisfied, so the nursery lint yields.
+redundant_pub_crate = "allow"

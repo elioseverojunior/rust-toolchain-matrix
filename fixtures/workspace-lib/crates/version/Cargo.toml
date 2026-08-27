@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# No `rust-version` here and none on `[workspace.package]`: this member has no
+# MSRV at all.
+
+[package]
+name = "version"
+description = "Demo fixture member crate for the rust-project-parser action"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

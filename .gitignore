@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# dependencies (bun install)
+node_modules
+
+# output
+out
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+/scorecard.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# Python virtual env
+.venv
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Nektos/ACT
+/.act/**
+!/.act/README.md
+
+# Rumdl
+/**/.rumdl_cache/
+
+# Playwright MCP scratch output (page snapshots, screenshots). Written to the
+# working directory by the browser tooling, never part of the project.
+.playwright-mcp/
+
+# Add
+!CLAUDE.md
+!AGENTS.md
+!opencode.json
+
+# Docusaurus build artifacts
+/**/build/
+/**/.docusaurus/
+
+# Stryker
+/**/.stryker-tmp/
+
+# Rust / Cargo
+/**/target/

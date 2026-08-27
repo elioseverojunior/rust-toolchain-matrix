@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# SHAPE 1 -- explicit inheritance. `rust-version.workspace = true` parses to the
+# OBJECT `{ workspace: true }`, not a string. A parser that expects a string here
+# silently reads no MSRV.
+
+[package]
+name = "channel"
+description = "Demo fixture member crate for the rust-project-parser action"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

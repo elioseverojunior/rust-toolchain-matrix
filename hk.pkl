@@ -1,0 +1,186 @@
+// SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+//
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+amends "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Config.pkl"
+
+local linters = new Mapping<String, Step> {
+    ["check-added-large-files"] = new Step {
+        glob = "**"
+        exclude = "dist/**"
+        check = "hk util check-added-large-files {{ files }}"
+    }
+
+    ["check-merge-conflict"] = new Step {
+        glob = "**"
+        check = "hk util check-merge-conflict {{ files }}"
+    }
+
+    ["check-case-conflict"] = new Step {
+        glob = "**"
+        check = "hk util check-case-conflict {{ files }}"
+    }
+
+    ["check-symlinks"] = new Step {
+        glob = "**"
+        check = "hk util check-symlinks {{ files }}"
+    }
+
+    ["check-executables-have-shebangs"] = new Step {
+        glob = "**"
+        check = "hk util check-executables-have-shebangs {{ files }}"
+    }
+
+    ["check-byte-order-marker"] = new Step {
+        glob = "**"
+        check = "hk util check-byte-order-marker {{ files }}"
+    }
+
+    // dist/index.js is excluded: it now bundles @actions/cache, and that
+    // pulls in @azure/core-rest-pipeline, whose RestError formatter and
+    // @actions/cache's own cache-list debug message both bake a trailing
+    // space into a multi-line template literal. That is vendor string
+    // content, not formatting — stripping it here would desync the commit
+    // from a byte-identical `bun run build`, which the CI Build job diffs
+    // against verbatim.
+    ["trailing-whitespace-fixer"] = new Step {
+        glob = "**"
+        exclude = "dist/**"
+        check = "hk util trailing-whitespace --diff {{ files }}"
+        fix = "hk util trailing-whitespace --fix {{ files }}"
+    }
+
+    ["end-of-file-fixer"] = new Step {
+        glob = "**"
+        check = "hk util end-of-file-fixer --diff {{ files }}"
+        fix = "hk util end-of-file-fixer --fix {{ files }}"
+    }
+
+    ["mixed-line-ending-fixer"] = new Step {
+        glob = "**"
+        check = "hk util mixed-line-ending --diff {{ files }}"
+        fix = "hk util mixed-line-ending --fix {{ files }}"
+    }
+
+    // Not `Builtins.gitleaks`, because that omits `--config` and gitleaks then
+    // discovers `.gitleaks.toml` by walking up from the common root of the
+    // paths it is handed. A commit touching files across the tree resolves that
+    // root to the repository and finds the allowlist; a commit touching only
+    // `README.md` resolves it to that one file, runs with NO allowlist at all,
+    // and fails on the `20250915abcd-1f2e3d4c` fixture the config exists to
+    // permit. Nothing about the content differs between those two runs — only
+    // which other files happened to be staged alongside it — which is the same
+    // "passes or fails on where a byte lands" failure the Azurite note in
+    // `.gitleaks.toml` describes, and it teaches people to re-run the check
+    // rather than read it. Passing the config explicitly removes the guesswork.
+    ["gitleaks"] = new Step {
+        glob = "**"
+        check = "gitleaks dir --config .gitleaks.toml --redact --verbose --no-banner {{ files }}"
+    }
+
+    ["eslint"] = new Step {
+        // `*.ts` does NOT match `*.tsx` — the site's React components would skip
+        // this step entirely on a commit that touches only them.
+        glob = "*.{ts,tsx}"
+        check = "bun run eslint:lint"
+        fix = "bun run eslint:lint:fix"
+    }
+
+    ["prettier"] = new Step {
+        glob = "*.{ts,tsx,yml,yaml,json,md,toml,css}"
+        check = "bun run prettier:format"
+        fix = "bun run prettier:format:fix"
+    }
+
+    ["typecheck"] = new Step {
+        glob = "*.{ts,tsx}"
+        check = "bun run typecheck"
+    }
+
+    // `--no-deps` on every `mise run` below, and it is load-bearing in CI.
+    //
+    // `mise.toml` declares `[deps.bun] auto = true`, and mise's own help is
+    // explicit about what that means: "Providers with `auto = true` are
+    // automatically invoked before `mise x` and `mise run` unless skipped with
+    // the --no-deps flag." So each of these steps ran an unfiltered
+    // `bun install` before its linter -- and hk runs them CONCURRENTLY, so
+    // three of those raced in the same directory.
+    //
+    // Invisible locally, because the freshness check mise applies (lockfile
+    // newer than `node_modules/`) is satisfied when both workspaces are
+    // installed, and the auto step is a no-op. CI installs only the action's
+    // workspace (`--filter rust-project-parser`), so `docs/node_modules` is absent,
+    // the check reports stale on every run, and the install is real work every
+    // time.
+    //
+    // It failed as a bare `bun exited with non-zero status: exit code 1` with
+    // no linter output at all, on whichever step lost the race -- `mermaid` on
+    // one attempt and `actionlint` on the next, from the same commit. A linter
+    // that prints nothing is not the linter failing.
+    ["actionlint"] = new Step {
+        glob = ".github/workflows/*.{yml,yaml}"
+        check = "mise run --no-deps actionlint {{ files }}"
+    }
+
+    ["markdownlint"] = new Step {
+        glob = "*.md"
+        check = "mise run --no-deps markdownlint {{ files }}"
+        fix = "mise run --no-deps markdownlint:fix {{ files }}"
+    }
+
+    // markdownlint validates the fence, not the diagram inside it. A mermaid
+    // syntax error otherwise surfaces only as a broken render on GitHub.
+    ["mermaid"] = new Step {
+        glob = "*.md"
+        check = "mise run --no-deps mermaidlint {{ files }}"
+    }
+}
+
+local tests = new Mapping<String, Step> {
+    ["test"] = new Step {
+        glob = "*.ts"
+        check = "bun run test"
+    }
+}
+
+local builds = new Mapping<String, Step> {
+    ["build"] = new Step {
+        glob = "*.ts"
+        check = "bun run build"
+    }
+}
+
+local complete = (linters.toMap() + tests.toMap()).toMapping()
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+
+    ["pre-commit:all"] {
+        fix = true
+        stash = "git"
+        steps = complete
+    }
+
+    ["check"] {
+        steps = linters
+    }
+
+    ["fix"] {
+        fix = true
+        steps = complete
+    }
+
+    ["commit-msg"] {
+        steps {
+            ["commit-lint"] = new {
+                check = "bunx commitlint --edit {{ files }}"
+            }
+        }
+    }
+
+    ["post-commit"] {}
+}

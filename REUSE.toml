@@ -1,0 +1,72 @@
+SPDX-FileCopyrightText = "RUST-PROJECT-PARSER contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+SPDX-PackageDownloadLocation = "https://github.com/elioseverojunior/rust-project-parser"
+SPDX-PackageName = "rust-project-parser"
+SPDX-PackageSupplier = "RUST-PROJECT-PARSER contributors"
+version = 1
+
+[[annotations]]
+SPDX-FileCopyrightText = "RUST-PROJECT-PARSER contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+path = ["**"]
+precedence = "aggregate"
+
+[tool.comply]
+# Custom comply settings
+#
+# `ignore` governs `comply lint` ONLY. `comply annotate` has no ignore
+# mechanism -- no flag, and this list is not consulted -- so it adds an SPDX
+# header to every file with a recognised comment style, every time it runs.
+# Verified by probing every glob form against `docs/content/`, exact path
+# included: none of them stopped it.
+#
+# That is why the headers under `docs/content/` moved twice. 2cbf53f removed
+# them by hand and a later `comply annotate` put them straight back, because
+# nothing in this file could have prevented it. The previous comment here
+# claimed Markdown "needs no inline header ... these entries are that policy",
+# which was never true of `annotate` and is now stated correctly: every file
+# is licensed by the `**` aggregate above, so a header is redundant, and
+# `annotate` adds one anyway. Uniform headers are the stable state; hand-
+# removing them is not.
+#
+# The stale `**/docs/index.md` entry is gone with this: that file was deleted
+# in f669496 when the prose moved into the Docusaurus tree, so it had been
+# ignoring nothing.
+ignore = [
+  "**/*.ico",
+  "**/*.lock",
+  "**/*.png",
+  "**/*.svg",
+  "**/.aider.*/",
+  "**/.bun-version",
+  "**/.nvmrc",
+  "**/.prettierignore",
+  "**/.prettierrc",
+  "**/.remember/",
+  "**/.rumdl_cache/",
+  "**/dist/",
+  "**/ARCHITECTURE.md",
+  "**/opencode*.json",
+  "**/package*.json",
+  "**/tsconfig*.json",
+  "**/stryker.config.json",
+  ".actrc",
+]
+
+# Neither the built-in tables nor the reference tool claim these two, so
+# `annotate` refuses them rather than guessing a syntax -- declaring it here is
+# the supported answer. Pkl takes `#` line comments despite its `//` docs, and
+# `.gitmessage` is a git commit template, where `#` is what git strips.
+[[tool.comply.comment-styles]]
+close = ""
+filenames = [".gitmessage"]
+line = ""
+open = "#"
+
+
+[[tool.comply.comment-styles]]
+close = ""
+extensions = ["pkl"]
+filenames = ["hk.pkl"]
+line = ""
+open = "//"
