@@ -51,6 +51,38 @@ function legCount(outputs: Map<string, string>): number {
   return matrixInclude(outputs).length;
 }
 
+/**
+ * Groups per-crate legs by their `crate` key.
+ *
+ * A bare total leg count cannot tell a correct per-crate merge from a wrong
+ * one that happens to sum to the same number (e.g. every leg carrying the
+ * same crate name, or the toolchains misassigned across crates). This is
+ * what lets a test assert the actual DISTRIBUTION instead.
+ */
+function groupLegsByCrate(
+  legs: readonly MatrixLeg[],
+): Map<string, MatrixLeg[]> {
+  const grouped = new Map<string, MatrixLeg[]>();
+  for (const leg of legs) {
+    const crate = leg.crate;
+    if (crate === undefined) {
+      throw new Error("leg is missing a crate name in per-crate mode");
+    }
+    const existing = grouped.get(crate);
+    if (existing === undefined) {
+      grouped.set(crate, [leg]);
+    } else {
+      existing.push(leg);
+    }
+  }
+  return grouped;
+}
+
+/** The distinct toolchains present among a set of legs, sorted for a stable comparison. */
+function distinctToolchains(legs: readonly MatrixLeg[]): string[] {
+  return [...new Set(legs.map((leg) => leg.toolchain))].sort();
+}
+
 describe("golden fixtures", () => {
   it("cli has no MSRV and one toolchain", () => {
     const g = fixtureDeps("cli", {});
@@ -140,6 +172,48 @@ describe("golden fixtures", () => {
     run(g.deps);
     expect(g.failures).toEqual([]);
     expect(legCount(g.outputs)).toBe(20);
+
+    // A bare total is the one assertion shape that CANNOT catch a wrong
+    // merge across the per-crate units: channel=1/version=2/strict=2 (or
+    // every leg carrying the same crate name) also sums to 20. Assert the
+    // DISTRIBUTION instead -- how many legs, and which distinct toolchains,
+    // landed on each crate. `version` staying at exactly `["1.97"]` while
+    // `channel` and `strict` pick up their own MSRV is the observable proof
+    // that the opt-in inheritance rule survives the per-unit merge in
+    // `action.ts`, not just that some 20 legs came out the other end.
+    const byCrate = groupLegsByCrate(matrixInclude(g.outputs));
+    expect([...byCrate.keys()].sort()).toEqual([
+      "channel",
+      "strict",
+      "version",
+    ]);
+
+    const channelLegs = byCrate.get("channel") ?? [];
+    expect(channelLegs.length).toBe(8);
+    expect(distinctToolchains(channelLegs)).toEqual(["1.88", "1.97"]);
+
+    const versionLegs = byCrate.get("version") ?? [];
+    expect(versionLegs.length).toBe(4);
+    expect(distinctToolchains(versionLegs)).toEqual(["1.97"]);
+
+    const strictLegs = byCrate.get("strict") ?? [];
+    expect(strictLegs.length).toBe(8);
+    expect(distinctToolchains(strictLegs)).toEqual(["1.92", "1.97"]);
+
+    // The `crates` output is a separate emitted value from `matrix` itself;
+    // assert it names exactly these three crates too. Compared sorted
+    // because emission order follows `deps.glob`'s match order, which this
+    // test does not pin down and should not need to.
+    const rawCrates = g.outputs.get("crates");
+    if (rawCrates === undefined) {
+      throw new Error("crates output missing");
+    }
+    const crates: unknown = JSON.parse(rawCrates);
+    expect((crates as string[]).slice().sort()).toEqual([
+      "channel",
+      "strict",
+      "version",
+    ]);
   });
 
   it("workspace-lib has nothing to validate", () => {
