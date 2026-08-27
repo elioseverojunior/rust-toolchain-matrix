@@ -63,7 +63,7 @@ auto = true
 description = "Test Workflow with Nektos/ACT Locally"
 usage = '''
 flag "-t --test <test>" {
-  choices "act" "act-matrix" "act-cache"
+  choices "act" "act-matrix" "act-failure"
   default "act"
   help "Test Case Workflow"
   env "ACT_TEST"

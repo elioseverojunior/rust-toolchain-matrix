@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Smoke test: run the action against every fixture and assert the documented
+# outputs. Proves the committed bundle loads under node24 in a real container
+# and honours its contract -- something the unit suite cannot show, because it
+# calls `run()` directly and never exercises action.yml or dist/index.js.
+#
+# Run locally: mise run act -t act
+name: act-smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "action.yml"
+      - "dist/**"
+      - "fixtures/**"
+      - ".github/workflows/tests/act.yml"
+
+jobs:
+  cli:
+    name: fixture cli (no MSRV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        uses: ./
+        with:
+          working-directory: fixtures/cli
+
+      - name: assert outputs
+        env:
+          TOOLCHAINS: ${{ steps.parse.outputs.toolchains }}
+          MSRV_SOURCE: ${{ steps.parse.outputs.msrv-source }}
+          CHANNEL: ${{ steps.parse.outputs.channel }}
+        run: |
+          set -euo pipefail
+          test "$TOOLCHAINS" = '["1.97"]'   || { echo "toolchains=$TOOLCHAINS"; exit 1; }
+          test "$MSRV_SOURCE" = 'none'      || { echo "msrv-source=$MSRV_SOURCE"; exit 1; }
+          test "$CHANNEL" = '1.97'          || { echo "channel=$CHANNEL"; exit 1; }
+          echo "cli OK"
+
+  cli-msrv:
+    name: fixture cli-msrv (MSRV becomes a leg)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        uses: ./
+        with:
+          working-directory: fixtures/cli-msrv
+
+      - name: assert outputs
+        env:
+          TOOLCHAINS: ${{ steps.parse.outputs.toolchains }}
+          MSRV: ${{ steps.parse.outputs.msrv }}
+          MSRV_SOURCE: ${{ steps.parse.outputs.msrv-source }}
+          MATRIX: ${{ steps.parse.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          test "$TOOLCHAINS" = '["1.97","1.88"]' || { echo "toolchains=$TOOLCHAINS"; exit 1; }
+          test "$MSRV" = '1.88'                  || { echo "msrv=$MSRV"; exit 1; }
+          test "$MSRV_SOURCE" = 'cargo-toml'     || { echo "msrv-source=$MSRV_SOURCE"; exit 1; }
+          legs=$(echo "$MATRIX" | jq '.include | length')
+          test "$legs" -eq 8 || { echo "expected 8 legs, got $legs"; exit 1; }
+          echo "cli-msrv OK (8 legs)"
+
+  workspace-modes:
+    name: fixture workspace-lib-msrv (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: root
+            msrv: "1.88"
+            legs: 8
+          - mode: aggregate
+            msrv: "1.92"
+            legs: 8
+          - mode: per-crate
+            msrv: "1.92"
+            legs: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        uses: ./
+        with:
+          working-directory: fixtures/workspace-lib-msrv
+          workspace-mode: ${{ matrix.mode }}
+
+      - name: assert mode cardinality
+        env:
+          MSRV: ${{ steps.parse.outputs.msrv }}
+          MATRIX: ${{ steps.parse.outputs.matrix }}
+          EXPECTED_MSRV: ${{ matrix.msrv }}
+          EXPECTED_LEGS: ${{ matrix.legs }}
+        run: |
+          set -euo pipefail
+          test "$MSRV" = "$EXPECTED_MSRV" || { echo "msrv=$MSRV want=$EXPECTED_MSRV"; exit 1; }
+          legs=$(echo "$MATRIX" | jq '.include | length')
+          test "$legs" -eq "$EXPECTED_LEGS" || { echo "legs=$legs want=$EXPECTED_LEGS"; exit 1; }
+          echo "${{ matrix.mode }} OK ($legs legs, msrv $MSRV)"

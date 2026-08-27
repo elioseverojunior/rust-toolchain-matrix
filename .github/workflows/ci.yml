@@ -1,0 +1,120 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# The gate. Three jobs, each guarding a distinct failure mode.
+#
+# `dist-is-current` is the one that matters most for this project's shape: a
+# GitHub Action runs the COMMITTED bundle, not the source. If dist/index.js
+# drifts from src/, the action silently ships behaviour nobody reviewed, and
+# nothing else in the repo would notice.
+name: ci
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: test, lint, and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      # bunfig.toml enforces 100% lines/functions/statements, so this fails on
+      # a coverage drop without a separate gate.
+      - name: test with coverage
+        run: bun test
+
+      - name: lint
+        run: bun run eslint:lint
+
+      - name: typecheck
+        run: bun run typecheck
+
+      - name: format
+        run: bun run prettier:format
+
+  dist-is-current:
+    name: dist matches src
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      - name: rebuild the bundle
+        run: bun run build
+
+      - name: the committed bundle must match a fresh build
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code --quiet dist/; then
+            echo "::error::dist/index.js is stale -- run 'bun run build' locally and commit the result"
+            git diff --stat dist/
+            exit 1
+          fi
+          echo "dist/index.js is current"
+
+      # The bundle is built with --target node and action.yml declares node24,
+      # so a Bun global here would pass every local test and fail only in
+      # production. Cheap to check, catastrophic to miss.
+      - name: the bundle must not reference Bun globals
+        run: |
+          set -euo pipefail
+          if grep -q 'Bun\.' dist/index.js; then
+            echo "::error::dist/index.js references a Bun global but runs under node24"
+            grep -n 'Bun\.' dist/index.js | head
+            exit 1
+          fi
+          echo "no Bun globals in the bundle"
+
+  self-test:
+    name: the action against its own fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        uses: ./
+        with:
+          working-directory: fixtures/workspace-lib-msrv
+          workspace-mode: per-crate
+
+      # Proves the committed bundle runs as a real action and that the
+      # opt-in inheritance rule survives end to end: `version` opted out, so it
+      # gets only the pin, while `channel` and `strict` each get two toolchains.
+      - name: assert the per-crate fan-out
+        env:
+          MATRIX: ${{ steps.parse.outputs.matrix }}
+          CRATES: ${{ steps.parse.outputs.crates }}
+        run: |
+          set -euo pipefail
+          legs=$(echo "$MATRIX" | jq '.include | length')
+          test "$legs" -eq 20 || { echo "expected 20 legs, got $legs"; exit 1; }
+          names=$(echo "$CRATES" | jq -r 'sort | join(",")')
+          test "$names" = "channel,strict,version" \
+            || { echo "crates=$CRATES"; exit 1; }
+          for spec in channel:8 strict:8 version:4; do
+            name="${spec%%:*}"; want="${spec##*:}"
+            got=$(echo "$MATRIX" \
+              | jq --arg c "$name" '[.include[]|select(.crate==$c)]|length')
+            test "$got" -eq "$want" \
+              || { echo "$name: $got legs, want $want"; exit 1; }
+          done
+          echo "per-crate fan-out correct: channel 8, strict 8, version 4"

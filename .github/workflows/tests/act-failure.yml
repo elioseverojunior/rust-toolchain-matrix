@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Failure-path test: the fatal conditions must actually FAIL a real job.
+#
+# The unit suite asserts that `run()` calls setFailed. That is not the same as
+# a workflow going red: setFailed only fails the step if the runner honours the
+# exit code, and a fatal that emitted partial outputs first could still let a
+# downstream job proceed with garbage. This workflow proves the whole chain.
+#
+# Each job builds a deliberately broken project in a temp directory, so the
+# committed fixtures stay valid -- they are a corpus of CORRECT inputs and must
+# not be polluted with broken ones.
+#
+# Run locally: mise run act -t act-failure
+name: act-failure
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "action.yml"
+      - "dist/**"
+      - ".github/workflows/tests/act-failure.yml"
+
+jobs:
+  clippy-divergence:
+    name: .clippy.toml disagreeing with Cargo.toml must fail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: build a project whose clippy msrv disagrees
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/broken-clippy/src
+          cat > /tmp/broken-clippy/Cargo.toml <<'EOF'
+          [package]
+          name = "broken-clippy"
+          version = "0.1.0"
+          edition = "2024"
+          rust-version = "1.88"
+          EOF
+          printf 'msrv = "1.90"\n' > /tmp/broken-clippy/.clippy.toml
+          printf 'fn main() {}\n' > /tmp/broken-clippy/src/main.rs
+
+      - id: parse
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: /tmp/broken-clippy
+
+      - name: the step must have failed
+        env:
+          OUTCOME: ${{ steps.parse.outcome }}
+          MATRIX: ${{ steps.parse.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure" || { echo "expected failure, got: $OUTCOME"; exit 1; }
+          # All-or-nothing: a fatal must emit NOTHING, because a downstream job
+          # reading a half-written matrix is worse than one reading none.
+          test -z "$MATRIX" || { echo "outputs leaked on failure: $MATRIX"; exit 1; }
+          echo "clippy divergence correctly failed the job with no partial output"
+
+  toolchain-below-msrv:
+    name: a toolchain under the declared MSRV must fail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: fixtures/cli-msrv
+          # The fixture declares rust-version 1.88; asking to build with 1.85
+          # means compiling below the project's own declared floor.
+          toolchain: "1.85"
+
+      - name: the step must have failed
+        env:
+          OUTCOME: ${{ steps.parse.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure" || { echo "expected failure, got: $OUTCOME"; exit 1; }
+          echo "toolchain below MSRV correctly failed the job"
+
+  missing-cargo-toml:
+    name: a directory with no Cargo.toml must fail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        continue-on-error: true
+        uses: ./
+        with:
+          working-directory: .github
+
+      - name: the step must have failed
+        env:
+          OUTCOME: ${{ steps.parse.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = "failure" || { echo "expected failure, got: $OUTCOME"; exit 1; }
+          echo "missing Cargo.toml correctly failed the job"

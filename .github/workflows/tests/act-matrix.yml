@@ -1,0 +1,112 @@
+# SPDX-FileCopyrightText: RUST-PROJECT-PARSER contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# THE end-to-end test. Job `parse` runs the action; job `build` feeds its
+# `matrix` output straight into `strategy.matrix` via fromJSON and fans out.
+#
+# This is the only test that proves the product. The 114 unit tests assert the
+# JSON *string* the action emits; nothing there proves GitHub's matrix engine
+# accepts it. If the shape were wrong -- a stray key, a non-array include, a
+# value the expression parser rejects -- every unit test would still pass and
+# every real workflow would fail. Here, a wrong shape means zero fan-out jobs.
+#
+# The runner-map input pins every target to ubuntu-latest. That is a LIMITATION
+# OF act, not of the action: act has no macos-15-intel or ubuntu-24.04-arm
+# image, so the real runner table cannot fan out locally. On GitHub the input
+# would be omitted and the derived native runners used.
+#
+# One consequence to read correctly: with an override in play every leg reports
+# can-run=false, INCLUDING x86_64-unknown-linux-gnu on ubuntu-latest. That is by
+# design, not a bug -- the action cannot know whether an arbitrary override
+# label runs the target natively, so it refuses to claim runnability. The real
+# can-run values are exercised by act.yml, which uses no override.
+#
+# Run locally: mise run act:matrix
+name: act-matrix
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "action.yml"
+      - "dist/**"
+      - "fixtures/**"
+      - ".github/workflows/tests/act-matrix.yml"
+
+jobs:
+  parse:
+    name: derive the matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.parse.outputs.matrix }}
+      toolchains: ${{ steps.parse.outputs.toolchains }}
+      install-plan: ${{ steps.parse.outputs.install-plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: parse
+        uses: ./
+        with:
+          working-directory: fixtures/cli-msrv
+          runner-map: |
+            {
+              "x86_64-unknown-linux-gnu": "ubuntu-latest",
+              "aarch64-unknown-linux-gnu": "ubuntu-latest",
+              "x86_64-apple-darwin": "ubuntu-latest",
+              "wasm32-unknown-unknown": "ubuntu-latest"
+            }
+
+      - name: show what will be fanned out
+        run: |
+          set -euo pipefail
+          echo '${{ steps.parse.outputs.matrix }}' | jq .
+          echo "install plan:"
+          echo '${{ steps.parse.outputs.install-plan }}' | jq -r '.[] | "  \(.step): \(.argv | join(" "))"'
+
+  build:
+    name: ${{ matrix.toolchain }} / ${{ matrix.target }}
+    needs: parse
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.parse.outputs.matrix) }}
+    steps:
+      - name: report this leg
+        env:
+          TOOLCHAIN: ${{ matrix.toolchain }}
+          TARGET: ${{ matrix.target }}
+          OS: ${{ matrix.os }}
+          CAN_RUN: ${{ matrix['can-run'] }}
+        run: |
+          set -euo pipefail
+          echo "toolchain=$TOOLCHAIN target=$TARGET os=$OS can-run=$CAN_RUN"
+          test -n "$TOOLCHAIN" || { echo "leg has no toolchain"; exit 1; }
+          test -n "$TARGET"    || { echo "leg has no target"; exit 1; }
+          # can-run tells a consumer whether `cargo test` is possible or only
+          # `cargo build`: rustup target add installs rust-std, not a linker.
+          if [ "$CAN_RUN" = "true" ]; then
+            echo "would: cargo test --target $TARGET"
+          else
+            echo "would: cargo build --target $TARGET   (not runnable here)"
+          fi
+
+  fan-out-happened:
+    name: assert the fan-out was real
+    needs: [parse, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: a skipped matrix is the failure this action exists to prevent
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          MATRIX: ${{ needs.parse.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          legs=$(echo "$MATRIX" | jq '.include | length')
+          echo "matrix declared $legs legs; build job result: $BUILD_RESULT"
+          test "$legs" -eq 8 || { echo "expected 8 legs, got $legs"; exit 1; }
+          # `skipped` is what GitHub reports for an EMPTY matrix -- a green
+          # workflow that ran nothing. Treat it as a hard failure.
+          test "$BUILD_RESULT" = "success" || { echo "fan-out did not run: $BUILD_RESULT"; exit 1; }
+          echo "fan-out confirmed: 8 legs all executed"
