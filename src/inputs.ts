@@ -30,10 +30,17 @@ function isWorkspaceMode(value: string): value is WorkspaceMode {
 /**
  * Rejects a value that is not a bare identifier.
  *
- * These arrive from an untrusted checkout and end up interpolated into rustup
- * arguments, so this is defence in depth plus a better error message.
+ * These arrive from an untrusted checkout — either as a workflow input
+ * (validated here, for `targets` and `channels`) or as a value read out of
+ * the checked-out repository itself (validated by `action.ts`, for the
+ * `targets` and `components` parsed from `rust-toolchain.toml`). Exported so
+ * both call sites share one regex: a future tightening of the pattern must
+ * apply to both paths, not just the one a caller happened to remember.
+ *
+ * The value ends up interpolated into rustup arguments, so this is defence
+ * in depth plus a better error message.
  */
-function assertIdentifier(value: string, label: string): void {
+export function assertIdentifier(value: string, label: string): void {
   if (!IDENTIFIER.test(value)) {
     throw new Error(`${label} "${value}" is not a valid identifier`);
   }
