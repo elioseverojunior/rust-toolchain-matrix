@@ -18779,6 +18779,7 @@ var DEFAULT_RUNNERS = {
   "aarch64-pc-windows-msvc": "windows-11-arm"
 };
 var FALLBACK = "ubuntu-latest";
+var WASM32_PREFIX = "wasm32-";
 function resolveRunner(target, overrides) {
   const override = overrides[target];
   if (override !== undefined) {
@@ -18787,6 +18788,9 @@ function resolveRunner(target, overrides) {
   const native = DEFAULT_RUNNERS[target];
   if (native !== undefined) {
     return { os: native, canRun: true, mapped: true };
+  }
+  if (target.startsWith(WASM32_PREFIX)) {
+    return { os: FALLBACK, canRun: false, mapped: true };
   }
   return { os: FALLBACK, canRun: false, mapped: false };
 }
@@ -19111,6 +19115,9 @@ function run(deps) {
     for (const component of toolchainFile.components) {
       assertIdentifier(component, "component");
     }
+    if (toolchainFile.channel !== undefined) {
+      assertIdentifier(toolchainFile.channel, "channel");
+    }
     const validationUnits = manifest.isWorkspaceRoot ? dedupeByDirectory([
       ...expandWorkspace({ deps, root, manifest, mode: "per-crate" }),
       ...expandWorkspace({ deps, root, manifest, mode: "root" })
@@ -19148,7 +19155,7 @@ function run(deps) {
     const legs = [];
     const toolchains = [];
     const crates = [];
-    const perCrate = units.length > 1;
+    const perCrate = options.workspaceMode === "per-crate";
     for (const unit of units) {
       const msrv = unit.rustVersion;
       const forUnit = [pin];
@@ -19172,6 +19179,14 @@ function run(deps) {
       legs.push(...built.include);
       toolchains.push(...built.toolchains);
     }
+    if (legs.length === 0) {
+      throw new Error("matrix is empty; a downstream job would be skipped silently");
+    }
+    const declaredMsrvs = units.map((unit) => unit.rustVersion).filter((value) => value !== undefined);
+    const highestMsrv = maxVersion(declaredMsrvs);
+    const msrvOwner = units.find((unit) => unit.rustVersion === highestMsrv);
+    const resolvedMsrv = perCrate ? highestMsrv ?? "" : primary?.rustVersion ?? "";
+    const resolvedMsrvSource = perCrate ? highestMsrv === undefined ? "none" : msrvOwner?.msrvSource ?? "none" : primary?.msrvSource ?? "none";
     const entries = toOutputEntries({
       matrix: { include: legs },
       toolchains: [...new Set(toolchains)],
@@ -19179,8 +19194,8 @@ function run(deps) {
       runners: [...new Set(legs.map((leg) => leg.os))],
       crates,
       channel: pin,
-      msrv: primary?.rustVersion ?? "",
-      "msrv-source": primary?.msrvSource ?? "none",
+      msrv: resolvedMsrv,
+      "msrv-source": resolvedMsrvSource,
       components: toolchainFile.components,
       profile: toolchainFile.profile ?? "",
       "install-plan": buildInstallPlan({
