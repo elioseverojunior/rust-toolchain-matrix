@@ -24,4 +24,11 @@ describe("describeError", () => {
     circular["self"] = circular;
     expect(describeError(circular)).toBe("[unserialisable error]");
   });
+
+  it("falls back for undefined, whose JSON.stringify is undefined rather than throwing", () => {
+    // `JSON.stringify(undefined)` returns `undefined` — it does not throw —
+    // so this exercises the `?? "[unserialisable error]"` branch directly,
+    // distinct from the `catch` branch above.
+    expect(describeError(undefined)).toBe("[unserialisable error]");
+  });
 });

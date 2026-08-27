@@ -139,4 +139,50 @@ describe("expandWorkspace", () => {
     expect(units).toHaveLength(1);
     expect(units[0]?.name).toBe("cli");
   });
+
+  it("falls back to the root's own MSRV when no member declares one in aggregate mode", () => {
+    // Pins the `highest === undefined` branch of `aggregateUnit`: with no
+    // member contributing a parseable `rust-version`, `maxVersion` returns
+    // `undefined` and the unit must fall back to the root's own
+    // `rustVersion`/`msrvSource` rather than silently losing the value.
+    const deps: ActionDeps = { ...fakeDeps(), glob: () => ["crates/version"] };
+    const units = expandWorkspace({
+      deps,
+      root: "/w",
+      manifest: parseManifest('[workspace]\nmembers = ["crates/*"]\n'),
+      mode: "aggregate",
+    });
+    expect(units).toHaveLength(1);
+    expect(units[0]?.rustVersion).toBeUndefined();
+    expect(units[0]?.msrvSource).toBe("none");
+  });
+
+  it("falls back to the member's relative path when its manifest has no name", () => {
+    // Pins the `member.name ?? relative` branch of `memberUnits`: a Cargo
+    // manifest with no `name` key (unusual, but not something this parser
+    // should crash on) must still produce a usable unit name.
+    const files: Record<string, string> = {
+      "/w/crates/nameless/Cargo.toml": '[package]\nversion = "0.1.0"\n',
+    };
+    const deps: ActionDeps = {
+      core: fakeDeps().core,
+      readFile: (path: string): string => {
+        const found = files[path];
+        if (found === undefined) {
+          throw new Error(`ENOENT: ${path}`);
+        }
+        return found;
+      },
+      glob: () => ["crates/nameless"],
+      cwd: "/w",
+    };
+    const units = expandWorkspace({
+      deps,
+      root: "/w",
+      manifest: parseManifest(ROOT_TOML),
+      mode: "per-crate",
+    });
+    expect(units).toHaveLength(1);
+    expect(units[0]?.name).toBe("crates/nameless");
+  });
 });
