@@ -17,9 +17,11 @@ describe("resolveRunner", () => {
       ["aarch64-pc-windows-msvc", "windows-11-arm"],
     ];
     for (const [target, os] of cases) {
-      const choice = resolveRunner(target, {});
-      expect(choice.os).toBe(os);
-      expect(choice.canRun).toBe(true);
+      expect(resolveRunner(target, {})).toEqual({
+        os,
+        canRun: true,
+        mapped: true,
+      });
     }
   });
 
@@ -30,23 +32,30 @@ describe("resolveRunner", () => {
   });
 
   it("maps wasm to ubuntu but marks it not runnable", () => {
-    const choice = resolveRunner("wasm32-unknown-unknown", {});
-    expect(choice.os).toBe("ubuntu-latest");
-    expect(choice.canRun).toBe(false);
+    expect(resolveRunner("wasm32-unknown-unknown", {})).toEqual({
+      os: "ubuntu-latest",
+      canRun: false,
+      mapped: false,
+    });
   });
 
   it("falls back for an unmapped target and reports it", () => {
-    const choice = resolveRunner("riscv64gc-unknown-linux-gnu", {});
-    expect(choice.os).toBe("ubuntu-latest");
-    expect(choice.canRun).toBe(false);
-    expect(choice.mapped).toBe(false);
+    expect(resolveRunner("riscv64gc-unknown-linux-gnu", {})).toEqual({
+      os: "ubuntu-latest",
+      canRun: false,
+      mapped: false,
+    });
   });
 
   it("lets an override win", () => {
-    const choice = resolveRunner("wasm32-unknown-unknown", {
-      "wasm32-unknown-unknown": "self-hosted-wasm",
+    expect(
+      resolveRunner("wasm32-unknown-unknown", {
+        "wasm32-unknown-unknown": "self-hosted-wasm",
+      }),
+    ).toEqual({
+      os: "self-hosted-wasm",
+      canRun: false,
+      mapped: true,
     });
-    expect(choice.os).toBe("self-hosted-wasm");
-    expect(choice.mapped).toBe(true);
   });
 });
