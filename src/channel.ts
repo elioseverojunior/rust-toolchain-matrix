@@ -34,8 +34,7 @@ export function parseChannel(raw: string): ParsedChannel {
   let kind: ParsedChannel["kind"] = "version";
   let version: string | undefined;
   let prerelease: string | undefined;
-  // eslint-disable-next-line no-useless-assignment
-  let rest = trimmed;
+  let rest: string;
 
   // A leading digit means a versioned channel; only then can `-beta.N` be a
   // prerelease rather than the `beta` channel itself. Checking this first is
