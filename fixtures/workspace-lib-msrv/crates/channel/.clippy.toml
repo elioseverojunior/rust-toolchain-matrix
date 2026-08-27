@@ -25,6 +25,7 @@ type-complexity-threshold = 300
 allow-expect-in-tests = true
 allow-unwrap-in-tests = true
 
-# Must match the `rust-version` declared in this directory's Cargo.toml; the
-# consistency rule enforces that the two never drift apart.
+# This crate inherits `rust-version.workspace = true` from the root
+# `[workspace.package]`, which declares 1.88; msrv here must match that
+# resolved value, not merely the local Cargo.toml text.
 msrv = "1.88"
