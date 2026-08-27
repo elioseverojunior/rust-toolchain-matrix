@@ -13,6 +13,7 @@ import { assertClippyAgreement, assertToolchainMeetsMsrv } from "./msrv.ts";
 import { buildInstallPlan, toOutputEntries } from "./outputs.ts";
 import { resolveRunner } from "./runners.ts";
 import { parseToolchainFile } from "./toolchain.ts";
+import type { Unit } from "./workspace.ts";
 import { expandWorkspace } from "./workspace.ts";
 
 /** Components rustup's `default` profile does not ship. */
@@ -24,6 +25,28 @@ function readOptional(deps: ActionDeps, path: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Collapses a list of units to one per directory, keeping insertion order.
+ *
+ * Used to union the member units with the root unit for validation (RULING
+ * 1). A `Map` keyed by directory dedupes unconditionally — inserting is
+ * unconditional whether or not the key already exists — rather than an
+ * explicit "already seen, skip" branch: the root directory is never
+ * actually one of its own members (`memberDirectories` expands globs
+ * relative to `root`, which never yields `root` itself back), so a
+ * skip-branch would be an untested, unreachable line rather than a real
+ * guard. A collision is not possible today, but keying by directory here
+ * still means one never silently forms if a future glob resolution ever
+ * changed that.
+ */
+function dedupeByDirectory(units: readonly Unit[]): Unit[] {
+  const byDirectory = new Map<string, Unit>();
+  for (const unit of units) {
+    byDirectory.set(unit.directory, unit);
+  }
+  return [...byDirectory.values()];
 }
 
 /**
@@ -77,13 +100,23 @@ export function run(deps: ActionDeps): void {
     // of the files on disk, not of which units the matrix happens to use.
     // `root` and `aggregate` mode collapse a workspace to a single unit,
     // which would let a disagreeing member go unchecked. So: for a
-    // workspace root, expand ONCE with "per-crate" purely to obtain every
-    // member directory and validate that full list. A plain package is not
-    // a workspace root — `expandWorkspace` returns the very same single
-    // unit no matter the mode passed to it — so there the validation set
-    // and the matrix set are one call, not two.
+    // workspace root, expand with "per-crate" purely to obtain every member
+    // directory. A Cargo manifest can ALSO be a `[package]` and a
+    // `[workspace]` at once — a root crate that owns members — and
+    // `expandWorkspace({ mode: "per-crate" })` returns member units ONLY
+    // (the root is never one of its own members), which would silently
+    // stop checking that hybrid root's own `.clippy.toml`. So the
+    // validation set is the members UNION the root unit (fetched via mode
+    // "root", which always resolves to just the root regardless of
+    // workspace-ness), deduplicated by directory. A plain package is not a
+    // workspace root — `expandWorkspace` returns the very same single unit
+    // no matter the mode passed to it — so there the validation set and the
+    // matrix set are one call, not three.
     const validationUnits = manifest.isWorkspaceRoot
-      ? expandWorkspace({ deps, root, manifest, mode: "per-crate" })
+      ? dedupeByDirectory([
+          ...expandWorkspace({ deps, root, manifest, mode: "per-crate" }),
+          ...expandWorkspace({ deps, root, manifest, mode: "root" }),
+        ])
       : expandWorkspace({
           deps,
           root,

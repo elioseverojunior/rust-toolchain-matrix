@@ -153,6 +153,89 @@ describe("run", () => {
     expect(r.outputs.get("toolchains")).toBe('["1.97"]');
     expect(r.warnings.join(" ")).toContain("MSRV");
   });
+
+  it("emits every output value, including runners, profile, install-plan, and json", () => {
+    const r = recordingDeps({
+      "/p/Cargo.toml": '[package]\nname = "cli"\nrust-version = "1.88"\n',
+      "/p/rust-toolchain.toml":
+        "[toolchain]\n" +
+        'channel = "1.97"\n' +
+        'profile = "default"\n' +
+        'targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]\n' +
+        'components = ["rustfmt"]\n',
+    });
+    run(r.deps);
+    expect(r.failures).toEqual([]);
+    expect(r.warnings).toEqual([]);
+
+    // `runners`: the exact deduplicated list, in first-seen order.
+    expect(r.outputs.get("runners")).toBe('["ubuntu-latest","macos-latest"]');
+
+    // `profile`: passes through the toolchain file's value unchanged.
+    expect(r.outputs.get("profile")).toBe("default");
+
+    // `install-plan`: the whole ordered step array, not merely its length.
+    const installPlan: unknown = JSON.parse(
+      r.outputs.get("install-plan") ?? "null",
+    );
+    expect(installPlan).toEqual([
+      {
+        step: "toolchain",
+        argv: ["rustup", "toolchain", "install", "$TOOLCHAIN"],
+      },
+      { step: "profile", argv: ["rustup", "set", "profile", "default"] },
+      { step: "components", argv: ["rustup", "component", "add", "rustfmt"] },
+      { step: "target", argv: ["rustup", "target", "add", "$TARGET"] },
+    ]);
+
+    // `matrix`: every leg, not a sample.
+    const matrixOutput: unknown = JSON.parse(r.outputs.get("matrix") ?? "null");
+    expect(matrixOutput).toEqual({
+      include: [
+        {
+          toolchain: "1.97",
+          target: "x86_64-unknown-linux-gnu",
+          os: "ubuntu-latest",
+          "can-run": true,
+        },
+        {
+          toolchain: "1.97",
+          target: "aarch64-apple-darwin",
+          os: "macos-latest",
+          "can-run": true,
+        },
+        {
+          toolchain: "1.88",
+          target: "x86_64-unknown-linux-gnu",
+          os: "ubuntu-latest",
+          "can-run": true,
+        },
+        {
+          toolchain: "1.88",
+          target: "aarch64-apple-darwin",
+          os: "macos-latest",
+          "can-run": true,
+        },
+      ],
+    });
+
+    // `json`: parses, and its `matrix` field equals the `matrix` output —
+    // guards against action.ts ever building the two from different data.
+    const jsonOutput: unknown = JSON.parse(r.outputs.get("json") ?? "null");
+    expect(jsonOutput).toEqual({
+      matrix: matrixOutput,
+      toolchains: ["1.97", "1.88"],
+      targets: ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"],
+      runners: ["ubuntu-latest", "macos-latest"],
+      crates: [],
+      channel: "1.97",
+      msrv: "1.88",
+      "msrv-source": "cargo-toml",
+      components: ["rustfmt"],
+      profile: "default",
+      "install-plan": installPlan,
+    });
+  });
 });
 
 describe("run — warning paths the base scenarios above never reach", () => {
@@ -301,5 +384,31 @@ describe("run — RULING 1: per-directory clippy validation is mode-independent"
         },
       ],
     });
+  });
+
+  it("fails on the ROOT's own clippy disagreement in a hybrid [package]+[workspace] manifest", () => {
+    // A Cargo manifest can be both a package AND a workspace root at once —
+    // a root crate that also owns members. `expandWorkspace({mode:
+    // "per-crate"})` returns member units only (the root is never one of
+    // its own members), so validating members alone would miss the root's
+    // own .clippy.toml. This is the regression the fix for Finding 1
+    // addresses: without unioning in the root unit, this test would see no
+    // failure at all.
+    const r = recordingWorkspaceDeps(
+      {
+        "/p/Cargo.toml":
+          '[package]\nname = "root"\nrust-version = "1.88"\n' +
+          '[workspace]\nmembers = ["crates/*"]\n',
+        "/p/.clippy.toml": 'msrv = "1.90"\n',
+        "/p/crates/ok/Cargo.toml": '[package]\nname = "ok"\n',
+      },
+      ["crates/ok"],
+      // workspace-mode left unset, so it defaults to "root".
+    );
+    run(r.deps);
+    expect(r.failures).toEqual([
+      '/p/.clippy.toml declares msrv "1.90" but /p/Cargo.toml declares ' +
+        'rust-version "1.88"; they must be equal',
+    ]);
   });
 });
