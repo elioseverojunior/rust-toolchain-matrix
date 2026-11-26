@@ -60,7 +60,7 @@ jobs:
         # Use the Automation App identity (same as cicd.yml) so
         # deletions are auditably attributed to the App. `repositories`
         # scopes the token to just this repo.
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.CLIENT_ID }}
           private-key: ${{ secrets.PRIVATE_KEY }}
